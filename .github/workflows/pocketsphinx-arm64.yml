@@ -1,0 +1,109 @@
+name: PocketSphinx Windows Arm64
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/pocketsphinx-arm64.yml"
+      - "patches/pocketsphinx/**"
+
+permissions:
+  contents: read
+
+jobs:
+  native-arm64:
+    runs-on: windows-11-arm
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out PortPilot
+        uses: actions/checkout@v4
+
+      - name: Check out pinned PocketSphinx
+        shell: pwsh
+        run: |
+          git clone https://github.com/cmusphinx/pocketsphinx.git pocketsphinx
+          git -C pocketsphinx checkout 511126b492dcb267cf30d49d631946d7b61a9530
+          git -C pocketsphinx apply ../patches/pocketsphinx/0001-msvc-test-portability.patch
+          git -C pocketsphinx diff --check
+
+      - name: Record native environment
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          "PROCESSOR_ARCHITECTURE=$env:PROCESSOR_ARCHITECTURE" |
+            Tee-Object evidence/environment.txt
+          Get-CimInstance Win32_OperatingSystem |
+            Format-List Caption,Version,OSArchitecture |
+            Out-File -Append evidence/environment.txt
+          cmake --version | Out-File -Append evidence/environment.txt
+
+      - name: Configure native Arm64
+        shell: pwsh
+        run: cmake -S pocketsphinx -B pocketsphinx/build -A ARM64 -DBUILD_TESTING=ON
+
+      - name: Build native Arm64
+        shell: pwsh
+        run: cmake --build pocketsphinx/build --config Release --parallel
+
+      - name: Build and run C tests
+        id: c_tests
+        continue-on-error: true
+        shell: pwsh
+        run: cmake --build pocketsphinx/build --config Release --target check --parallel
+
+      - name: Verify PE architecture
+        shell: pwsh
+        run: |
+          $binary = "pocketsphinx/build/Release/pocketsphinx.exe"
+          $stream = [System.IO.File]::OpenRead($binary)
+          try {
+            $reader = [System.IO.BinaryReader]::new($stream)
+            $stream.Position = 0x3c
+            $peOffset = $reader.ReadInt32()
+            $stream.Position = $peOffset
+            $signature = $reader.ReadUInt32()
+            $machine = $reader.ReadUInt16()
+          }
+          finally {
+            $stream.Dispose()
+          }
+          "PE=0x{0:X8} Machine=0x{1:X4}" -f $signature,$machine |
+            Tee-Object evidence/pe-architecture.txt
+          if ($signature -ne 0x4550 -or $machine -ne 0xAA64) {
+            throw "Expected an ARM64 PE image"
+          }
+
+      - name: Run deterministic recognition
+        shell: pwsh
+        run: |
+          $root = Resolve-Path pocketsphinx
+          $exe = "$root/build/Release/pocketsphinx.exe"
+          & $exe `
+            -hmm "$root/model/en-us/en-us" `
+            -lm "$root/model/en-us/en-us.lm.bin" `
+            -dict "$root/model/en-us/cmudict-en-us.dict" `
+            single "$root/test/data/librivox/sense_and_sensibility_01_austen_64kb-0870.wav" |
+            Tee-Object evidence/recognition.json
+          if ($LASTEXITCODE -ne 0) {
+            throw "Recognition failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Enforce C test gate
+        if: always()
+        shell: pwsh
+        env:
+          C_TEST_OUTCOME: ${{ steps.c_tests.outcome }}
+        run: |
+          if ($env:C_TEST_OUTCOME -ne "success") {
+            throw "The native Arm64 C test gate failed; inspect the evidence artifact"
+          }
+
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocketsphinx-windows-arm64-evidence
+          path: |
+            evidence/
+            pocketsphinx/build/Testing/Temporary/

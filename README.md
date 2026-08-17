@@ -18,3 +18,8 @@ A reusable, agent-driven workflow that analyses, ports, tests, and packages open
 4. Document the entire process.
 5. Use AI to improve the documentation.
 6. Create an agent.
+
+## Porting pilots
+
+- [PocketSphinx incremental porting process](docs/POCKETSPHINX_PORTING_PROCESS.md)
+- [PocketSphinx Arm64 findings and architecture decision](docs/POCKETSPHINX_ARM64_FINDINGS.md)
