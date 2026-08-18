@@ -37,8 +37,16 @@ jobs:
         run: |
           git -c core.autocrlf=false clone https://github.com/cmusphinx/pocketsphinx.git pocketsphinx
           git -C pocketsphinx checkout 511126b492dcb267cf30d49d631946d7b61a9530
-          git -C pocketsphinx apply ../patches/pocketsphinx/0001-msvc-test-portability.patch
+          $patch = Resolve-Path "patches/pocketsphinx/0001-msvc-test-portability.patch"
+          git -C pocketsphinx apply $patch
           git -C pocketsphinx diff --check
+          git -C pocketsphinx diff --stat
+          if (-not (Select-String pocketsphinx/test/unit/test_config.c "_putenv_s")) {
+            throw "PocketSphinx portability patch was not applied"
+          }
+          if (-not (Select-String pocketsphinx/CMakeLists.txt "CMAKE_RUNTIME_OUTPUT_DIRECTORY_.*CONFIG_UPPER")) {
+            throw "PocketSphinx multi-config output patch was not applied"
+          }
 
       - name: Record native environment
         shell: pwsh

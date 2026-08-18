@@ -27,14 +27,14 @@ index 82ed0b5e..4ffee88e 100644
  configure_file(config.h.in config.h)
  configure_file(sphinx_config.h.in include/pocketsphinx/sphinx_config.h)
 diff --git a/test/unit/test_config.c b/test/unit/test_config.c
-index 1a69baec..f7622096 100644
+index 1a69baec..930b622f 100644
 --- a/test/unit/test_config.c
 +++ b/test/unit/test_config.c
 @@ -2,6 +2,10 @@
  #include "pocketsphinx_internal.h"
  #include "test_macros.h"
  
-+#ifdef _WIN32
++#ifdef _MSC_VER
 +#define setenv(name, value, overwrite) _putenv_s(name, value)
 +#endif
 +
@@ -57,14 +57,14 @@ index 7c9e453a..76cd79c9 100644
  	TEST_ASSERT(dict = dict_init(config, mdef));
  	TEST_ASSERT(d2p = dict2pid_build(mdef, dict));
 diff --git a/test/unit/test_endpointer.c b/test/unit/test_endpointer.c
-index 64f3c8cb..11c4be67 100644
+index 64f3c8cb..209e8c5c 100644
 --- a/test/unit/test_endpointer.c
 +++ b/test/unit/test_endpointer.c
 @@ -8,6 +8,11 @@
  #include "util/ckd_alloc.h"
  #include "test_macros.h"
  
-+#ifdef _WIN32
++#ifdef _MSC_VER
 +#define popen _popen
 +#define pclose _pclose
 +#endif
@@ -90,14 +90,14 @@ index d5ba90e5..53d2b9f7 100644
                                           "samprate: 16000"));
          cmd_ln_log_values_r(config, ps_args());
 diff --git a/test/unit/test_vad.c b/test/unit/test_vad.c
-index b85cfb16..f2b06864 100644
+index b85cfb16..909f1b48 100644
 --- a/test/unit/test_vad.c
 +++ b/test/unit/test_vad.c
 @@ -9,6 +9,11 @@
  #include "util/ckd_alloc.h"
  #include "test_macros.h"
  
-+#ifdef _WIN32
++#ifdef _MSC_VER
 +#define popen _popen
 +#define pclose _pclose
 +#endif
