@@ -77,24 +77,10 @@ jobs:
       - name: Verify PE architecture
         shell: pwsh
         run: |
-          $binary = "pocketsphinx/build/pocketsphinx.exe"
-          $stream = [System.IO.File]::OpenRead($binary)
-          try {
-            $reader = [System.IO.BinaryReader]::new($stream)
-            $stream.Position = 0x3c
-            $peOffset = $reader.ReadInt32()
-            $stream.Position = $peOffset
-            $signature = $reader.ReadUInt32()
-            $machine = $reader.ReadUInt16()
-          }
-          finally {
-            $stream.Dispose()
-          }
-          "PE=0x{0:X8} Machine=0x{1:X4}" -f $signature,$machine |
-            Tee-Object evidence/pe-architecture.txt
-          if ($signature -ne 0x4550 -or $machine -ne 0xAA64) {
-            throw "Expected an ARM64 PE image"
-          }
+          & .\.github\skills\pe-architecture-verifier\scripts\Test-PeArchitecture.ps1 `
+            -Path pocketsphinx\build\pocketsphinx.exe `
+            -ExpectedMachine ARM64 `
+            -OutputPath evidence\pe-architecture.json
 
       - name: Run deterministic recognition
         shell: pwsh
@@ -167,29 +153,9 @@ jobs:
           if ($wheels.Count -ne 1) {
             throw "Expected exactly one win_arm64 wheel, found $($wheels.Count)."
           }
-
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $extractDir = Join-Path $env:RUNNER_TEMP "pocketsphinx-wheel"
-          [System.IO.Compression.ZipFile]::ExtractToDirectory($wheels[0].FullName, $extractDir)
-
-          $nativeFiles = @(Get-ChildItem $extractDir -Recurse -File |
-            Where-Object { $_.Extension -in ".pyd", ".dll" })
-          if ($nativeFiles.Count -eq 0) {
-            throw "The wheel contains no native extension or DLL."
-          }
-
-          $report = @("Wheel: $($wheels[0].Name)")
-          foreach ($file in $nativeFiles) {
-            $bytes = [System.IO.File]::ReadAllBytes($file.FullName)
-            $peOffset = [BitConverter]::ToInt32($bytes, 0x3c)
-            $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
-            $relativePath = [System.IO.Path]::GetRelativePath($extractDir, $file.FullName)
-            $report += "$relativePath Machine=0x$($machine.ToString('X4'))"
-            if ($machine -ne 0xAA64) {
-              throw "$relativePath is not native Arm64 (machine 0x$($machine.ToString('X4')))."
-            }
-          }
-          $report | Tee-Object evidence\wheel-architecture.txt
+          & .\.github\skills\python-native-wheel-arm64\scripts\Test-WheelArchitecture.ps1 `
+            -WheelPath $wheels[0].FullName `
+            -OutputPath evidence\wheel-architecture.json
 
       - name: Upload build and test evidence
         if: always()
