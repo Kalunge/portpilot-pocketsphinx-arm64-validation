@@ -191,15 +191,58 @@ jobs:
           }
           $report | Tee-Object evidence\wheel-architecture.txt
 
+      - name: Upload build and test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocketsphinx-windows-arm64-evidence
+          path: |
+            evidence/
+            pocketsphinx/build/Testing/Temporary/
+            wheelhouse/*.whl
+
+  validate-arm64-wheel:
+    name: Clean-install Arm64 wheel
+    needs: native-arm64
+    runs-on: windows-11-arm
+
+    steps:
+      - name: Check out PortPilot
+        uses: actions/checkout@v4
+
+      - name: Check out pinned PocketSphinx fixtures
+        shell: pwsh
+        run: |
+          git clone --no-checkout https://github.com/cmusphinx/pocketsphinx.git pocketsphinx
+          git -C pocketsphinx config core.autocrlf false
+          git -C pocketsphinx checkout 511126b492dcb267cf30d49d631946d7b61a9530
+
+      - name: Set up native Arm64 Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          architecture: arm64
+
+      - name: Download Arm64 wheel
+        uses: actions/download-artifact@v5
+        with:
+          name: pocketsphinx-windows-arm64-evidence
+          path: validation-artifacts
+
       - name: Validate clean wheel installation and runtime
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $wheel = Get-ChildItem wheelhouse\pocketsphinx-*-win_arm64.whl -ErrorAction Stop
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          $wheels = @(Get-ChildItem validation-artifacts -Recurse -Filter "pocketsphinx-*-win_arm64.whl")
+          if ($wheels.Count -ne 1) {
+            throw "Expected exactly one win_arm64 wheel, found $($wheels.Count)."
+          }
+
           python -m venv arm64-venv
           $venvPython = Resolve-Path arm64-venv\Scripts\python.exe
           & $venvPython -m pip install --upgrade pip
-          & $venvPython -m pip install $wheel.FullName
+          & $venvPython -m pip install $wheels[0].FullName
           & $venvPython -m pip install pytest memory_profiler
 
           & $venvPython -c "import platform, pocketsphinx, struct; print(f'Python machine: {platform.machine()}'); print(f'Pointer width: {struct.calcsize(""P"") * 8}'); print(f'PocketSphinx module: {pocketsphinx.__file__}')"
@@ -223,12 +266,9 @@ jobs:
             throw "Installed-wheel recognition failed with exit code $LASTEXITCODE."
           }
 
-      - name: Upload validation evidence
+      - name: Upload runtime evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pocketsphinx-windows-arm64-evidence
-          path: |
-            evidence/
-            pocketsphinx/build/Testing/Temporary/
-            wheelhouse/*.whl
+          name: pocketsphinx-windows-arm64-runtime-evidence
+          path: evidence/
