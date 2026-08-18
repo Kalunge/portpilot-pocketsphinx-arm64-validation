@@ -23,3 +23,11 @@ A reusable, agent-driven workflow that analyses, ports, tests, and packages open
 
 - [PocketSphinx incremental porting process](docs/POCKETSPHINX_PORTING_PROCESS.md)
 - [PocketSphinx Arm64 findings and architecture decision](docs/POCKETSPHINX_ARM64_FINDINGS.md)
+- [PocketSphinx Windows Arm64 demo](docs/POCKETSPHINX_DEMO.md)
+
+## Reusable skills
+
+- `pe-architecture-verifier`: validates `.exe`, `.dll`, and `.pyd` PE machine
+  types and emits JSON evidence.
+- `python-native-wheel-arm64`: verifies a `win_arm64` wheel tag and audits every
+  bundled native binary.

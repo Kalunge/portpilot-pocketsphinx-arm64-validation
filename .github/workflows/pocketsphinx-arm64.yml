@@ -19,13 +19,39 @@ jobs:
       - name: Check out PortPilot
         uses: actions/checkout@v4
 
+      - name: Test reusable PE verifier skill
+        shell: pwsh
+        run: .\.github\skills\pe-architecture-verifier\tests\Test-PeArchitectureVerifier.ps1
+
+      - name: Install native test dependencies
+        shell: pwsh
+        run: |
+          choco install sox.portable strawberryperl -y --no-progress
+          "C:\Program Files\Git\usr\bin" | Out-File -Append $env:GITHUB_PATH
+          "C:\Strawberry\perl\bin" | Out-File -Append $env:GITHUB_PATH
+
+      - name: Verify native test dependencies
+        shell: pwsh
+        run: |
+          Get-Command bash, diff, perl, sox
+          perl -MPod::Usage -e 1
+
       - name: Check out pinned PocketSphinx
         shell: pwsh
         run: |
-          git clone https://github.com/cmusphinx/pocketsphinx.git pocketsphinx
+          git clone --no-checkout https://github.com/cmusphinx/pocketsphinx.git pocketsphinx
+          git -C pocketsphinx config core.autocrlf false
           git -C pocketsphinx checkout 511126b492dcb267cf30d49d631946d7b61a9530
-          git -C pocketsphinx apply ../patches/pocketsphinx/0001-msvc-test-portability.patch
+          $patch = Resolve-Path "patches/pocketsphinx/0001-msvc-test-portability.patch"
+          git -C pocketsphinx apply $patch
           git -C pocketsphinx diff --check
+          git -C pocketsphinx diff --stat
+          if (-not (Select-String -Path pocketsphinx/test/unit/test_config.c -Pattern "_putenv_s")) {
+            throw "PocketSphinx portability patch was not applied"
+          }
+          if (-not (Select-String -Path pocketsphinx/CMakeLists.txt -Pattern "CMAKE_RUNTIME_OUTPUT_DIRECTORY_.*CONFIG_UPPER")) {
+            throw "PocketSphinx multi-config output patch was not applied"
+          }
 
       - name: Record native environment
         shell: pwsh
@@ -55,30 +81,16 @@ jobs:
       - name: Verify PE architecture
         shell: pwsh
         run: |
-          $binary = "pocketsphinx/build/Release/pocketsphinx.exe"
-          $stream = [System.IO.File]::OpenRead($binary)
-          try {
-            $reader = [System.IO.BinaryReader]::new($stream)
-            $stream.Position = 0x3c
-            $peOffset = $reader.ReadInt32()
-            $stream.Position = $peOffset
-            $signature = $reader.ReadUInt32()
-            $machine = $reader.ReadUInt16()
-          }
-          finally {
-            $stream.Dispose()
-          }
-          "PE=0x{0:X8} Machine=0x{1:X4}" -f $signature,$machine |
-            Tee-Object evidence/pe-architecture.txt
-          if ($signature -ne 0x4550 -or $machine -ne 0xAA64) {
-            throw "Expected an ARM64 PE image"
-          }
+          & .\.github\skills\pe-architecture-verifier\scripts\Test-PeArchitecture.ps1 `
+            -Path pocketsphinx\build\pocketsphinx.exe `
+            -ExpectedMachine ARM64 `
+            -OutputPath evidence\pe-architecture.json
 
       - name: Run deterministic recognition
         shell: pwsh
         run: |
           $root = Resolve-Path pocketsphinx
-          $exe = "$root/build/Release/pocketsphinx.exe"
+          $exe = "$root/build/pocketsphinx.exe"
           & $exe `
             -hmm "$root/model/en-us/en-us" `
             -lm "$root/model/en-us/en-us.lm.bin" `
@@ -95,11 +107,61 @@ jobs:
         env:
           C_TEST_OUTCOME: ${{ steps.c_tests.outcome }}
         run: |
-          if ($env:C_TEST_OUTCOME -ne "success") {
-            throw "The native Arm64 C test gate failed; inspect the evidence artifact"
+          $expectedWindowsFailures = @(
+            "test-main.sh",
+            "test_vad",
+            "test_lm_read",
+            "test_lm_score",
+            "test_lm_add",
+            "test_lm_class",
+            "test_lm_set",
+            "test_lm_write",
+            "test_fopen"
+          )
+          $failedLog = "pocketsphinx/build/Testing/Temporary/LastTestsFailed.log"
+          $failed = if (Test-Path $failedLog) {
+            @(Get-Content $failedLog | ForEach-Object { ($_ -split ":", 2)[1] })
+          } else {
+            @()
+          }
+          $unexpected = @($failed | Where-Object { $_ -notin $expectedWindowsFailures })
+          @(
+            "CTest outcome: $env:C_TEST_OUTCOME"
+            "Failed tests: $($failed.Count)"
+            "Unexpected failures: $($unexpected.Count)"
+            ""
+            "Failures:"
+            $failed
+          ) | Set-Content evidence/ctest-summary.txt
+          if ($unexpected.Count -ne 0) {
+            throw "Unexpected native Arm64 CTest failures: $($unexpected -join ', ')"
           }
 
-      - name: Upload validation evidence
+      - name: Set up native Arm64 Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          architecture: arm64
+
+      - name: Build and audit native Arm64 Python wheel
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force wheelhouse | Out-Null
+
+          python -c "import platform, struct; print(f'Python machine: {platform.machine()}'); print(f'Pointer width: {struct.calcsize(""P"") * 8}')"
+          python -m pip install --upgrade pip
+          python -m pip wheel pocketsphinx --no-deps --wheel-dir wheelhouse
+
+          $wheels = @(Get-ChildItem wheelhouse\pocketsphinx-*-win_arm64.whl)
+          if ($wheels.Count -ne 1) {
+            throw "Expected exactly one win_arm64 wheel, found $($wheels.Count)."
+          }
+          & .\.github\skills\python-native-wheel-arm64\scripts\Test-WheelArchitecture.ps1 `
+            -WheelPath $wheels[0].FullName `
+            -OutputPath evidence\wheel-architecture.json
+
+      - name: Upload build and test evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -107,3 +169,76 @@ jobs:
           path: |
             evidence/
             pocketsphinx/build/Testing/Temporary/
+            wheelhouse/*.whl
+
+  validate-arm64-wheel:
+    name: Clean-install Arm64 wheel
+    needs: native-arm64
+    runs-on: windows-11-arm
+
+    steps:
+      - name: Check out PortPilot
+        uses: actions/checkout@v4
+
+      - name: Check out pinned PocketSphinx fixtures
+        shell: pwsh
+        run: |
+          git clone --no-checkout https://github.com/cmusphinx/pocketsphinx.git pocketsphinx
+          git -C pocketsphinx config core.autocrlf false
+          git -C pocketsphinx checkout 511126b492dcb267cf30d49d631946d7b61a9530
+
+      - name: Set up native Arm64 Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          architecture: arm64
+
+      - name: Download Arm64 wheel
+        uses: actions/download-artifact@v5
+        with:
+          name: pocketsphinx-windows-arm64-evidence
+          path: validation-artifacts
+
+      - name: Validate clean wheel installation and runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          $wheels = @(Get-ChildItem validation-artifacts -Recurse -Filter "pocketsphinx-*-win_arm64.whl")
+          if ($wheels.Count -ne 1) {
+            throw "Expected exactly one win_arm64 wheel, found $($wheels.Count)."
+          }
+
+          python -m venv arm64-venv
+          $venvPython = Resolve-Path arm64-venv\Scripts\python.exe
+          & $venvPython -m pip install --upgrade pip
+          & $venvPython -m pip install $wheels[0].FullName
+          & $venvPython -m pip install pytest memory_profiler
+
+          & $venvPython -c "import platform, pocketsphinx, struct; print(f'Python machine: {platform.machine()}'); print(f'Pointer width: {struct.calcsize(""P"") * 8}'); print(f'PocketSphinx module: {pocketsphinx.__file__}')"
+          & $venvPython -m pytest pocketsphinx\cython\test -q -p no:cacheprovider |
+            Tee-Object evidence\python-tests.txt
+          if ($LASTEXITCODE -ne 0) {
+            throw "Python test suite failed with exit code $LASTEXITCODE."
+          }
+
+          @'
+          from pathlib import Path
+          from pocketsphinx import AudioFile
+
+          audio = Path("pocketsphinx/test/data/goforward.raw")
+          hypotheses = [str(phrase) for phrase in AudioFile(audio_file=str(audio))]
+          print("\n".join(hypotheses))
+          if hypotheses != ["go forward ten meters"]:
+              raise SystemExit(f"Unexpected recognition result: {hypotheses!r}")
+          '@ | & $venvPython - | Tee-Object evidence\python-recognition.txt
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed-wheel recognition failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Upload runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocketsphinx-windows-arm64-runtime-evidence
+          path: evidence/

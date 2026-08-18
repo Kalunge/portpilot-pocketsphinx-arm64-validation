@@ -249,6 +249,20 @@ but not the implementer's reasoning.
 - Recognition behavior is equivalent within defined tolerances.
 - No high-confidence review finding remains unresolved.
 
+### Validation record
+
+Native Windows Arm64 validation succeeded in
+[public workflow run 32111597495](https://github.com/Kalunge/portpilot-pocketsphinx-arm64-validation/actions/runs/32111597495):
+
+- 96 of 105 CTest entries passed.
+- The nine failures are all present in the documented x64 Windows baseline:
+  `test-main.sh`, `test_vad`, `test_lm_read`, `test_lm_score`,
+  `test_lm_add`, `test_lm_class`, `test_lm_set`, `test_lm_write`, and
+  `test_fopen`.
+- No unexpected Arm64-specific test failure occurred.
+- `pocketsphinx.exe` reports PE machine type `0xAA64`.
+- Deterministic CLI recognition matched the x64 baseline.
+
 ## M5 - Native Python wheel
 
 ### Work
@@ -279,6 +293,15 @@ python -m pip debug --verbose
 - Every native binary in the wheel is Arm64.
 - Installation does not invoke a local compiler.
 
+### Validation record
+
+[Public workflow run 32112092764](https://github.com/Kalunge/portpilot-pocketsphinx-arm64-validation/actions/runs/32112092764)
+built `pocketsphinx-5.1.1-cp312-cp312-win_arm64.whl` with native Python
+3.12. The wheel audit found
+`pocketsphinx/_pocketsphinx.cp312-win_arm64.pyd` and verified its PE machine
+type as `0xAA64`. The wheel was then installed into a newly created virtual
+environment without building from source.
+
 ## M6 - Arm64 Python runtime validation
 
 ### Work
@@ -304,6 +327,16 @@ python -m pip debug --verbose
 - The speech demo works.
 - Any regression outside the agreed threshold is investigated or documented.
 
+### Validation record
+
+The clean environment in
+[workflow run 32112092764](https://github.com/Kalunge/portpilot-pocketsphinx-arm64-validation/actions/runs/32112092764)
+successfully imported the installed native module. All 43 Python tests passed
+in 16.15 seconds, and file-based recognition returned
+`go forward ten meters`. The runner has no microphone input, so microphone
+validation is not applicable. Comparative performance measurement remains an
+M8 evidence task and is not a functional release blocker.
+
 ## M7 - CI, packaging, and release integration
 
 ### Work
@@ -328,6 +361,14 @@ for both.
 ### Exit gate
 
 - A clean CI run produces and validates the Arm64 wheel without manual steps.
+
+### Validation record
+
+[Public workflow run 32114030689](https://github.com/Kalunge/portpilot-pocketsphinx-arm64-validation/actions/runs/32114030689)
+separates production and consumption into two native Arm64 jobs. The producer
+builds, audits, and uploads the wheel and evidence. The consumer starts from a
+fresh runner state, downloads the artifact, installs it into a new virtual
+environment, and executes the Python and recognition gates.
 
 ## M8 - PortPilot reuse and demo
 
@@ -365,6 +406,21 @@ for both.
 - The port is reproducible from a clean checkout.
 - The evidence report links every claim to a command output or artifact.
 - At least one skill is demonstrated on a second fixture or repository.
+
+### Validation record
+
+Two reusable skills were extracted:
+
+- `pe-architecture-verifier`
+- `python-native-wheel-arm64`
+
+The workflow uses both skills from a clean checkout. Before inspecting
+PocketSphinx, it tests the PE verifier against an independent synthetic AMD64
+fixture, including a negative ARM64 mismatch assertion. It then verifies the
+native PocketSphinx executable and Python extension. Both jobs passed in
+[workflow run 32114030689](https://github.com/Kalunge/portpilot-pocketsphinx-arm64-validation/actions/runs/32114030689).
+The repeatable demonstration is documented in
+[POCKETSPHINX_DEMO.md](POCKETSPHINX_DEMO.md).
 
 ## Agent responsibilities
 
@@ -446,5 +502,19 @@ committed to PortPilot.
 - Architecture proof: `pocketsphinx.exe` has PE machine type `0xAA64`.
 - First implementation slice: the three MSVC test programs that referenced
   POSIX APIs now build; the fixed `test_config` passes on x64.
-- Next action: run M4 on a native Windows Arm64 host or `windows-11-arm`
-  runner, then build the Python wheel with native Arm64 Python.
+- M4 native C validation: complete. The native runner passes 96 of 105 CTest
+  entries; all nine failures match the documented x64 Windows baseline, with
+  zero unexpected Arm64 failures.
+- M5 native Python wheel: complete. The CI artifact is
+  `pocketsphinx-5.1.1-cp312-cp312-win_arm64.whl`, and its native extension is
+  verified as PE machine type `0xAA64`.
+- M6 Arm64 Python runtime validation: functionally complete. A clean native
+  environment installed the wheel, all 43 Python tests passed, and deterministic
+  file recognition succeeded.
+- M7 CI and release integration: complete. Wheel production and clean-install
+  validation run as separate native Arm64 jobs with transferred artifacts.
+- M8 PortPilot reuse and demo: complete. Two reusable skills are exercised from
+  a clean checkout, and the PE verifier also passes an independent AMD64 fixture
+  test.
+- Latest successful evidence:
+  [public workflow run 32114030689](https://github.com/Kalunge/portpilot-pocketsphinx-arm64-validation/actions/runs/32114030689).

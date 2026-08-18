@@ -73,7 +73,7 @@ passes on x64.
   "evidence": "Windows tests require Bash, Perl modules, diff, SoX, and single-config executable paths.",
   "impact": "A native Windows runner cannot execute the complete suite without additional tools and path normalization.",
   "proposedSkill": "windows-ctest-dependency-audit",
-  "status": "open"
+  "status": "resolved-in-pilot"
 }
 ```
 
@@ -90,7 +90,7 @@ must be used instead of building the default target before CTest.
   "evidence": "The matrices include windows-latest but not windows-11-arm.",
   "impact": "No win_arm64 wheel is built or validated.",
   "proposedSkill": "python-native-wheel-arm64",
-  "status": "open"
+  "status": "validated-in-public-harness"
 }
 ```
 
@@ -133,17 +133,35 @@ Result: native C library and all seven CLI programs built successfully.
 
 The generated `pocketsphinx.exe` PE header contains machine type `0xAA64`
 (`ARM64`). Building the `check` target produces 78 Arm64 test executables.
-CTest execution is intentionally deferred to a native Windows Arm64 host; an
-x64 host cannot execute these binaries. The multi-configuration `check` target
-also invokes CTest without `-C Release`, an independent upstream test-driver
-defect that must be corrected before CI validation.
+Native validation on GitHub's `windows-11-arm` runner passes 96 of 105 CTest
+entries. All nine failures match the pre-existing x64 Windows baseline, so the
+parity gate reports zero unexpected Arm64 failures. The pilot patch supplies
+the selected CTest configuration and normalizes multi-configuration output
+paths.
+
+## Native Arm64 Python evidence
+
+[Public workflow run 32114030689](https://github.com/Kalunge/portpilot-pocketsphinx-arm64-validation/actions/runs/32114030689)
+completed the native wheel and runtime gates:
+
+```text
+Wheel: pocketsphinx-5.1.1-cp312-cp312-win_arm64.whl
+pocketsphinx\_pocketsphinx.cp312-win_arm64.pyd Machine=0xAA64
+Python tests: 43 passed in 16.15s
+Recognition: go forward ten meters
+```
+
+The workflow installs the wheel into a fresh native Arm64 Python 3.12 virtual
+environment. Normal dependency resolution succeeds, no local wheel compilation
+occurs during installation, and the installed extension imports and executes.
 
 ## Ordered remediation graph
 
-1. Fix the multi-configuration `check` target to pass the selected build
-   configuration to CTest.
-2. Separate native tests from Bash/POSIX integration tests on Windows.
-3. Add `windows-11-arm` test and release jobs.
-4. Run the 78 native test executables on Windows Arm64.
-5. Build a `win_arm64` wheel with native Arm64 Python.
-6. Verify every `.exe`, `.dll`, and `.pyd` PE machine type before publishing.
+1. Adapt the validated `windows-11-arm` harness to the upstream test and
+   release workflows.
+2. Separate wheel production and clean-install verification into independent
+   CI jobs.
+3. Preserve the Windows baseline parity gate until the remaining nine upstream
+   Windows test defects are fixed.
+4. Add performance comparison evidence and extract the reusable PortPilot
+   skills.
