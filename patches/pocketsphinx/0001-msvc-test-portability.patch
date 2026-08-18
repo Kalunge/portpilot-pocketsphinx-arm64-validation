@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index d824cbda..c9647a17 100644
+index 82ed0b5e..4ffee88e 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -16,7 +16,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -13,6 +13,19 @@ index d824cbda..c9647a17 100644
  endif()
  
  include(CheckTypeSize)
+@@ -99,6 +101,12 @@ cmake_print_variables(PS_THREAD_LOCAL_RNG)
+ set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+ set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
++foreach(CONFIG Debug Release MinSizeRel RelWithDebInfo)
++  string(TOUPPER ${CONFIG} CONFIG_UPPER)
++  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONFIG_UPPER} ${CMAKE_BINARY_DIR})
++  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONFIG_UPPER} ${CMAKE_BINARY_DIR})
++  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG_UPPER} ${CMAKE_BINARY_DIR})
++endforeach()
+ 
+ configure_file(config.h.in config.h)
+ configure_file(sphinx_config.h.in include/pocketsphinx/sphinx_config.h)
 diff --git a/test/unit/test_config.c b/test/unit/test_config.c
 index 1a69baec..f7622096 100644
 --- a/test/unit/test_config.c
@@ -28,6 +41,21 @@ index 1a69baec..f7622096 100644
  #define LEN(array) (sizeof(array) / sizeof(array[0]))
  static char *good_argv[] = {
      "pocketsphinx",
+diff --git a/test/unit/test_dict2pid.c b/test/unit/test_dict2pid.c
+index 7c9e453a..76cd79c9 100644
+--- a/test/unit/test_dict2pid.c
++++ b/test/unit/test_dict2pid.c
+@@ -19,8 +19,8 @@ main(int argc, char *argv[])
+ 	(void)argc;
+ 	(void)argv;
+ 	TEST_ASSERT(config = ps_config_parse_json(NULL,
+-                                                  "dict:" MODELDIR "/en-us/cmudict-en-us.dict "
+-                                                  "fdict:" MODELDIR "/en-us/en-us/noisedict"));
++                                                  "dict: \"" MODELDIR "/en-us/cmudict-en-us.dict\", "
++                                                  "fdict: \"" MODELDIR "/en-us/en-us/noisedict\""));
+ 	TEST_ASSERT(mdef = bin_mdef_read(NULL, MODELDIR "/en-us/en-us/mdef"));
+ 	TEST_ASSERT(dict = dict_init(config, mdef));
+ 	TEST_ASSERT(d2p = dict2pid_build(mdef, dict));
 diff --git a/test/unit/test_endpointer.c b/test/unit/test_endpointer.c
 index 64f3c8cb..11c4be67 100644
 --- a/test/unit/test_endpointer.c
@@ -44,6 +72,23 @@ index 64f3c8cb..11c4be67 100644
  static int sample_rates[] = {
      8000,
      16000,
+diff --git a/test/unit/test_init.c b/test/unit/test_init.c
+index d5ba90e5..53d2b9f7 100644
+--- a/test/unit/test_init.c
++++ b/test/unit/test_init.c
+@@ -16,9 +16,9 @@ main(int argc, char *argv[])
+         err_set_loglevel(ERR_INFO);
+ 	TEST_ASSERT(config =
+                     ps_config_parse_json(NULL,
+-                                         "hmm: " MODELDIR "/en-us/en-us "
+-                                         "lm: " MODELDIR "/en-us/en-us.lm.bin "
+-                                         "dict:" MODELDIR "/en-us/cmudict-en-us.dict "
++                                         "hmm: \"" MODELDIR "/en-us/en-us\", "
++                                         "lm: \"" MODELDIR "/en-us/en-us.lm.bin\", "
++                                         "dict: \"" MODELDIR "/en-us/cmudict-en-us.dict\", "
+                                          "fwdtree: true, fwdflat: true, bestpath: true "
+                                          "samprate: 16000"));
+         cmd_ln_log_values_r(config, ps_args());
 diff --git a/test/unit/test_vad.c b/test/unit/test_vad.c
 index b85cfb16..f2b06864 100644
 --- a/test/unit/test_vad.c

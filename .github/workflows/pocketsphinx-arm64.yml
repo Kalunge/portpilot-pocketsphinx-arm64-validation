@@ -19,10 +19,23 @@ jobs:
       - name: Check out PortPilot
         uses: actions/checkout@v4
 
+      - name: Install native test dependencies
+        shell: pwsh
+        run: |
+          choco install sox.portable strawberryperl -y --no-progress
+          "C:\Program Files\Git\usr\bin" | Out-File -Append $env:GITHUB_PATH
+          "C:\Strawberry\perl\bin" | Out-File -Append $env:GITHUB_PATH
+
+      - name: Verify native test dependencies
+        shell: pwsh
+        run: |
+          Get-Command bash, diff, perl, sox
+          perl -MPod::Usage -e 1
+
       - name: Check out pinned PocketSphinx
         shell: pwsh
         run: |
-          git clone https://github.com/cmusphinx/pocketsphinx.git pocketsphinx
+          git -c core.autocrlf=false clone https://github.com/cmusphinx/pocketsphinx.git pocketsphinx
           git -C pocketsphinx checkout 511126b492dcb267cf30d49d631946d7b61a9530
           git -C pocketsphinx apply ../patches/pocketsphinx/0001-msvc-test-portability.patch
           git -C pocketsphinx diff --check
