@@ -35,7 +35,8 @@ jobs:
       - name: Check out pinned PocketSphinx
         shell: pwsh
         run: |
-          git -c core.autocrlf=false clone https://github.com/cmusphinx/pocketsphinx.git pocketsphinx
+          git clone --no-checkout https://github.com/cmusphinx/pocketsphinx.git pocketsphinx
+          git -C pocketsphinx config core.autocrlf false
           git -C pocketsphinx checkout 511126b492dcb267cf30d49d631946d7b61a9530
           $patch = Resolve-Path "patches/pocketsphinx/0001-msvc-test-portability.patch"
           git -C pocketsphinx apply $patch
@@ -76,7 +77,7 @@ jobs:
       - name: Verify PE architecture
         shell: pwsh
         run: |
-          $binary = "pocketsphinx/build/Release/pocketsphinx.exe"
+          $binary = "pocketsphinx/build/pocketsphinx.exe"
           $stream = [System.IO.File]::OpenRead($binary)
           try {
             $reader = [System.IO.BinaryReader]::new($stream)
@@ -99,7 +100,7 @@ jobs:
         shell: pwsh
         run: |
           $root = Resolve-Path pocketsphinx
-          $exe = "$root/build/Release/pocketsphinx.exe"
+          $exe = "$root/build/pocketsphinx.exe"
           & $exe `
             -hmm "$root/model/en-us/en-us" `
             -lm "$root/model/en-us/en-us.lm.bin" `
