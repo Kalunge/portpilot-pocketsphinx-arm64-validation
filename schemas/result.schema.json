@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://portpilot.dev/schemas/result.schema.json",
+  "title": "PortPilot command result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "taskId",
+    "commandId",
+    "phase",
+    "startedAt",
+    "finishedAt",
+    "exitCode",
+    "outcome",
+    "artifacts"
+  ],
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "commandId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "phase": {
+      "enum": [
+        "analysis",
+        "baseline",
+        "target",
+        "package",
+        "report"
+      ]
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finishedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "exitCode": {
+      "type": "integer"
+    },
+    "outcome": {
+      "enum": ["success", "failure", "expected-failure", "skipped", "timeout"]
+    },
+    "stdoutPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stderrPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number"
+      }
+    }
+  }
+}

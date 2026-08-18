@@ -1,0 +1,159 @@
+schemaVersion: "1.0"
+
+project:
+  id: whisper-cpp
+  name: whisper.cpp
+  version: 1.9.2
+  license: MIT
+  homepage: https://github.com/ggml-org/whisper.cpp
+
+source:
+  repository: https://github.com/ggml-org/whisper.cpp.git
+  revision: 1fe009caeda75f69bc864d6370b10674e45a92bd
+  checkoutDirectory: whisper.cpp
+  submodules: true
+  lineEndings: lf
+  patches: []
+  resources:
+    - id: tiny-en-model
+      url: https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin
+      path: whisper.cpp\models\ggml-tiny.en.bin
+      sha256: 921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f
+
+target:
+  operatingSystem: windows
+  architecture: arm64
+  runner: windows-11-arm
+  configuration: Release
+
+toolchain:
+  dependencies: []
+  pathEntries: []
+  probes:
+    - id: cmake-version
+      executable: cmake
+      arguments:
+        - --version
+      capture: evidence\environment\cmake.txt
+
+build:
+  system: cmake
+  sourceDirectory: whisper.cpp
+  buildDirectory: whisper.cpp\build-${phase}
+  variants:
+    baseline:
+      runner: windows-2025
+      architecture: x64
+      platform: x64
+    target:
+      runner: windows-11-arm
+      architecture: arm64
+      platform: ARM64
+  definitions:
+    GGML_NATIVE: false
+    WHISPER_BUILD_TESTS: true
+    WHISPER_BUILD_EXAMPLES: true
+  commands:
+    - id: configure
+      executable: cmake
+      arguments:
+        - -S
+        - ${sourceDirectory}
+        - -B
+        - ${buildDirectory}
+        - -A
+        - ${platform}
+      appendDefinitions: true
+      phases:
+        - baseline
+        - target
+      timeoutMinutes: 15
+      capture: evidence\build\${phase}-configure.txt
+    - id: build
+      executable: cmake
+      arguments:
+        - --build
+        - ${buildDirectory}
+        - --config
+        - ${configuration}
+        - --parallel
+      phases:
+        - baseline
+        - target
+      timeoutMinutes: 30
+      capture: evidence\build\${phase}-build.txt
+
+validation:
+  architecture:
+    expectedMachine: ARM64
+    files:
+      - whisper.cpp\build-target\bin\Release\whisper-cli.exe
+      - whisper.cpp\build-target\bin\Release\whisper.dll
+  testSuites:
+    - id: ctest
+      phases:
+        - baseline
+        - target
+      command:
+        id: run-ctest
+        executable: ctest
+        arguments:
+          - --test-dir
+          - ${buildDirectory}
+          - -C
+          - ${configuration}
+          - --output-on-failure
+        timeoutMinutes: 30
+        continueOnError: true
+        capture: evidence\tests\${phase}-ctest.txt
+      resultFormat: ctest
+      resultPath: whisper.cpp\build-${phase}\Testing\Temporary\LastTestsFailed.log
+      failurePolicy: no-new-failures
+      knownFailures: []
+  scenarios:
+    - id: jfk-transcription
+      phases:
+        - baseline
+        - target
+      command:
+        id: transcribe-jfk
+        executable: whisper.cpp\build-${phase}\bin\Release\whisper-cli.exe
+        arguments:
+          - -m
+          - whisper.cpp\models\ggml-tiny.en.bin
+          - -f
+          - whisper.cpp\samples\jfk.wav
+          - --no-timestamps
+        timeoutMinutes: 10
+        capture: evidence\runtime\${phase}-jfk.txt
+      expected:
+        exitCode: 0
+        referenceFile: whisper.cpp\tests\en-0-ref.txt
+        normalization:
+          - strip-timestamps
+          - trim
+          - lowercase
+          - collapse-whitespace
+
+artifacts:
+  - id: arm64-build-evidence
+    paths:
+      - evidence
+      - whisper.cpp\build-target\bin\Release\*.exe
+      - whisper.cpp\build-target\bin\Release\*.dll
+    retentionDays: 30
+
+evidence:
+  directory: evidence
+  requiredRecords:
+    - environment
+    - source
+    - architecture-decision
+    - inventory
+    - findings
+    - task-graph
+    - build
+    - tests
+    - architecture
+    - runtime
+    - report

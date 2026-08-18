@@ -92,4 +92,10 @@ H0 -> H1 -> H2 -> H3 -> H4 -> H5 -> H6 -> H7 -> H8
   `1fe009caeda75f69bc864d6370b10674e45a92bd`.
 - Candidate evidence:
   [Second Application Candidate Lock](docs/SECOND_APP_CANDIDATE.md).
-- H1-H8: pending.
+- H1 contracts and schemas: complete.
+- Shared manifests:
+  `manifests/pocketsphinx/portpilot.yml` and
+  `manifests/whisper-cpp/portpilot.yml`.
+- Contract reference:
+  [PortPilot Contracts](docs/PORTPILOT_CONTRACTS.md).
+- H2-H8: pending.

@@ -1,0 +1,249 @@
+schemaVersion: "1.0"
+
+project:
+  id: pocketsphinx
+  name: PocketSphinx
+  version: 5.1.1
+  license: BSD-2-Clause
+  homepage: https://github.com/cmusphinx/pocketsphinx
+
+source:
+  repository: https://github.com/cmusphinx/pocketsphinx.git
+  revision: 511126b492dcb267cf30d49d631946d7b61a9530
+  checkoutDirectory: pocketsphinx
+  submodules: false
+  lineEndings: lf
+  patches:
+    - path: patches\pocketsphinx\0001-msvc-test-portability.patch
+      strip: 1
+      assertions:
+        - path: test\unit\test_config.c
+          contains: _putenv_s
+        - path: CMakeLists.txt
+          contains: CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG_UPPER}
+  resources: []
+
+target:
+  operatingSystem: windows
+  architecture: arm64
+  runner: windows-11-arm
+  configuration: Release
+
+toolchain:
+  dependencies:
+    - manager: chocolatey
+      packages:
+        - sox.portable
+        - strawberryperl
+  pathEntries:
+    - C:\Program Files\Git\usr\bin
+    - C:\Strawberry\perl\bin
+  probes:
+    - id: cmake-version
+      executable: cmake
+      arguments:
+        - --version
+      capture: evidence\environment\cmake.txt
+    - id: perl-module
+      executable: perl
+      arguments:
+        - -MPod::Usage
+        - -e
+        - "1"
+  python:
+    version: "3.12"
+    architecture: arm64
+
+build:
+  system: cmake
+  sourceDirectory: pocketsphinx
+  buildDirectory: pocketsphinx\build-${phase}
+  variants:
+    baseline:
+      runner: windows-2025
+      architecture: x64
+      platform: x64
+    target:
+      runner: windows-11-arm
+      architecture: arm64
+      platform: ARM64
+  definitions:
+    BUILD_TESTING: true
+  commands:
+    - id: configure
+      executable: cmake
+      arguments:
+        - -S
+        - ${sourceDirectory}
+        - -B
+        - ${buildDirectory}
+        - -A
+        - ${platform}
+      appendDefinitions: true
+      phases:
+        - baseline
+        - target
+      timeoutMinutes: 15
+      capture: evidence\build\${phase}-configure.txt
+    - id: build
+      executable: cmake
+      arguments:
+        - --build
+        - ${buildDirectory}
+        - --config
+        - ${configuration}
+        - --parallel
+      phases:
+        - baseline
+        - target
+      timeoutMinutes: 20
+      capture: evidence\build\${phase}-build.txt
+
+validation:
+  architecture:
+    expectedMachine: ARM64
+    files:
+      - pocketsphinx\build-target\pocketsphinx.exe
+  testSuites:
+    - id: ctest
+      phases:
+        - baseline
+        - target
+      command:
+        id: ctest-check
+        executable: cmake
+        arguments:
+          - --build
+          - ${buildDirectory}
+          - --config
+          - ${configuration}
+          - --target
+          - check
+          - --parallel
+        timeoutMinutes: 25
+        continueOnError: true
+        capture: evidence\tests\${phase}-ctest.txt
+      resultFormat: ctest
+      resultPath: pocketsphinx\build-${phase}\Testing\Temporary\LastTestsFailed.log
+      failurePolicy: no-new-failures
+      knownFailures:
+        - test-main.sh
+        - test_vad
+        - test_lm_read
+        - test_lm_score
+        - test_lm_add
+        - test_lm_class
+        - test_lm_set
+        - test_lm_write
+        - test_fopen
+  scenarios:
+    - id: file-recognition
+      phases:
+        - baseline
+        - target
+      command:
+        id: recognize-audio
+        executable: pocketsphinx\build-${phase}\pocketsphinx.exe
+        arguments:
+          - -hmm
+          - pocketsphinx\model\en-us\en-us
+          - -lm
+          - pocketsphinx\model\en-us\en-us.lm.bin
+          - -dict
+          - pocketsphinx\model\en-us\cmudict-en-us.dict
+          - single
+          - pocketsphinx\test\data\librivox\sense_and_sensibility_01_austen_64kb-0870.wav
+        timeoutMinutes: 5
+        capture: evidence\runtime\${phase}-recognition.json
+      expected:
+        exitCode: 0
+        outputContains:
+          - and mr john guess would have been
+        normalization:
+          - trim
+          - lowercase
+          - collapse-whitespace
+  package:
+    kind: python-wheel
+    buildCommand:
+      id: build-wheel
+      executable: python
+      arguments:
+        - -m
+        - pip
+        - wheel
+        - pocketsphinx
+        - --no-deps
+        - --wheel-dir
+        - wheelhouse
+      timeoutMinutes: 20
+      capture: evidence\package\wheel-build.txt
+    artifactPattern: wheelhouse\pocketsphinx-*-win_arm64.whl
+    platformTag: win_arm64
+    nativeFiles:
+      - "*.pyd"
+      - "*.dll"
+    cleanInstall:
+      runner: windows-11-arm
+      commands:
+        - id: install-wheel
+          executable: python
+          arguments:
+            - -m
+            - pip
+            - install
+            - ${wheel}
+          timeoutMinutes: 10
+          capture: evidence\package\install.txt
+        - id: install-test-dependencies
+          executable: python
+          arguments:
+            - -m
+            - pip
+            - install
+            - pytest
+            - memory_profiler
+          timeoutMinutes: 10
+          capture: evidence\package\test-dependencies.txt
+        - id: test-installed-wheel
+          executable: python
+          arguments:
+            - -m
+            - pytest
+            - pocketsphinx\cython\test
+            - -q
+            - -p
+            - no:cacheprovider
+          timeoutMinutes: 15
+          capture: evidence\package\python-tests.txt
+        - id: test-installed-recognition
+          executable: python
+          arguments:
+            - -c
+            - "from pocketsphinx import AudioFile; phrases = [str(p) for p in AudioFile(audio_file=r'pocketsphinx\\test\\data\\goforward.raw')]; print('\\n'.join(phrases)); assert phrases == ['go forward ten meters']"
+          timeoutMinutes: 5
+          capture: evidence\package\python-recognition.txt
+
+artifacts:
+  - id: arm64-build-evidence
+    paths:
+      - evidence
+      - pocketsphinx\build-target\Testing\Temporary
+      - wheelhouse\*.whl
+    retentionDays: 30
+
+evidence:
+  directory: evidence
+  requiredRecords:
+    - environment
+    - source
+    - architecture-decision
+    - inventory
+    - findings
+    - task-graph
+    - build
+    - tests
+    - architecture
+    - runtime
+    - package
+    - report

@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://portpilot.dev/schemas/finding.schema.json",
+  "title": "PortPilot compatibility finding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "projectId",
+    "category",
+    "severity",
+    "evidence",
+    "impact",
+    "status"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z0-9]+-[A-Z0-9-]+-[0-9]{3}$"
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "category": {
+      "enum": [
+        "build-system",
+        "compiler",
+        "dependency",
+        "x86-intrinsic",
+        "assembly",
+        "architecture-guard",
+        "test-infrastructure",
+        "packaging",
+        "runtime",
+        "environment"
+      ]
+    },
+    "severity": {
+      "enum": ["info", "low", "medium", "high", "blocker"]
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "line": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "symbol": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence": {
+      "type": "string",
+      "minLength": 1
+    },
+    "impact": {
+      "type": "string",
+      "minLength": 1
+    },
+    "proposedSkill": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "status": {
+      "enum": [
+        "open",
+        "accepted",
+        "in-progress",
+        "resolved",
+        "wont-fix",
+        "not-applicable"
+      ]
+    }
+  }
+}

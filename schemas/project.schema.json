@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://portpilot.dev/schemas/project.schema.json",
+  "title": "PortPilot run project",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "runId",
+    "manifest",
+    "projectId",
+    "source",
+    "target",
+    "status",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "runId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "manifest": {
+      "type": "string",
+      "minLength": 1
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "revision", "checkoutDirectory"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "format": "uri"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "checkoutDirectory": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operatingSystem", "architecture"],
+      "properties": {
+        "operatingSystem": {
+          "const": "windows"
+        },
+        "architecture": {
+          "enum": ["arm64", "arm64ec"]
+        }
+      }
+    },
+    "status": {
+      "enum": [
+        "created",
+        "analyzing",
+        "planned",
+        "running",
+        "validating",
+        "completed",
+        "failed",
+        "blocked"
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

@@ -31,3 +31,9 @@ A reusable, agent-driven workflow that analyses, ports, tests, and packages open
   types and emits JSON evidence.
 - `python-native-wheel-arm64`: verifies a `win_arm64` wheel tag and audits every
   bundled native binary.
+
+## Hackathon productization
+
+- [Approved workplan](plan.md)
+- [Manifest and run-state contracts](docs/PORTPILOT_CONTRACTS.md)
+- [Second application candidate lock](docs/SECOND_APP_CANDIDATE.md)
