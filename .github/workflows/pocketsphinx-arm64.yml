@@ -19,6 +19,10 @@ jobs:
       - name: Check out PortPilot
         uses: actions/checkout@v4
 
+      - name: Test reusable PE verifier skill
+        shell: pwsh
+        run: .\.github\skills\pe-architecture-verifier\tests\Test-PeArchitectureVerifier.ps1
+
       - name: Install native test dependencies
         shell: pwsh
         run: |
