@@ -41,10 +41,10 @@ jobs:
           git -C pocketsphinx apply $patch
           git -C pocketsphinx diff --check
           git -C pocketsphinx diff --stat
-          if (-not (Select-String pocketsphinx/test/unit/test_config.c "_putenv_s")) {
+          if (-not (Select-String -Path pocketsphinx/test/unit/test_config.c -Pattern "_putenv_s")) {
             throw "PocketSphinx portability patch was not applied"
           }
-          if (-not (Select-String pocketsphinx/CMakeLists.txt "CMAKE_RUNTIME_OUTPUT_DIRECTORY_.*CONFIG_UPPER")) {
+          if (-not (Select-String -Path pocketsphinx/CMakeLists.txt -Pattern "CMAKE_RUNTIME_OUTPUT_DIRECTORY_.*CONFIG_UPPER")) {
             throw "PocketSphinx multi-config output patch was not applied"
           }
 
