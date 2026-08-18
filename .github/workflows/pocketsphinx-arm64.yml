@@ -147,6 +147,82 @@ jobs:
             throw "Unexpected native Arm64 CTest failures: $($unexpected -join ', ')"
           }
 
+      - name: Set up native Arm64 Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          architecture: arm64
+
+      - name: Build and audit native Arm64 Python wheel
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force wheelhouse | Out-Null
+
+          python -c "import platform, struct; print(f'Python machine: {platform.machine()}'); print(f'Pointer width: {struct.calcsize(""P"") * 8}')"
+          python -m pip install --upgrade pip
+          python -m pip wheel pocketsphinx --no-deps --wheel-dir wheelhouse
+
+          $wheels = @(Get-ChildItem wheelhouse\pocketsphinx-*-win_arm64.whl)
+          if ($wheels.Count -ne 1) {
+            throw "Expected exactly one win_arm64 wheel, found $($wheels.Count)."
+          }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $extractDir = Join-Path $env:RUNNER_TEMP "pocketsphinx-wheel"
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($wheels[0].FullName, $extractDir)
+
+          $nativeFiles = @(Get-ChildItem $extractDir -Recurse -File |
+            Where-Object { $_.Extension -in ".pyd", ".dll" })
+          if ($nativeFiles.Count -eq 0) {
+            throw "The wheel contains no native extension or DLL."
+          }
+
+          $report = @("Wheel: $($wheels[0].Name)")
+          foreach ($file in $nativeFiles) {
+            $bytes = [System.IO.File]::ReadAllBytes($file.FullName)
+            $peOffset = [BitConverter]::ToInt32($bytes, 0x3c)
+            $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
+            $relativePath = [System.IO.Path]::GetRelativePath($extractDir, $file.FullName)
+            $report += "$relativePath Machine=0x$($machine.ToString('X4'))"
+            if ($machine -ne 0xAA64) {
+              throw "$relativePath is not native Arm64 (machine 0x$($machine.ToString('X4')))."
+            }
+          }
+          $report | Tee-Object evidence\wheel-architecture.txt
+
+      - name: Validate clean wheel installation and runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $wheel = Get-ChildItem wheelhouse\pocketsphinx-*-win_arm64.whl -ErrorAction Stop
+          python -m venv arm64-venv
+          $venvPython = Resolve-Path arm64-venv\Scripts\python.exe
+          & $venvPython -m pip install --upgrade pip
+          & $venvPython -m pip install $wheel.FullName
+          & $venvPython -m pip install pytest memory_profiler
+
+          & $venvPython -c "import platform, pocketsphinx, struct; print(f'Python machine: {platform.machine()}'); print(f'Pointer width: {struct.calcsize(""P"") * 8}'); print(f'PocketSphinx module: {pocketsphinx.__file__}')"
+          & $venvPython -m pytest pocketsphinx\cython\test -q -p no:cacheprovider |
+            Tee-Object evidence\python-tests.txt
+          if ($LASTEXITCODE -ne 0) {
+            throw "Python test suite failed with exit code $LASTEXITCODE."
+          }
+
+          @'
+          from pathlib import Path
+          from pocketsphinx import AudioFile
+
+          audio = Path("pocketsphinx/test/data/goforward.raw")
+          hypotheses = [str(phrase) for phrase in AudioFile(audio_file=str(audio))]
+          print("\n".join(hypotheses))
+          if hypotheses != ["go forward ten meters"]:
+              raise SystemExit(f"Unexpected recognition result: {hypotheses!r}")
+          '@ | & $venvPython - | Tee-Object evidence\python-recognition.txt
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed-wheel recognition failed with exit code $LASTEXITCODE."
+          }
+
       - name: Upload validation evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -155,3 +231,4 @@ jobs:
           path: |
             evidence/
             pocketsphinx/build/Testing/Temporary/
+            wheelhouse/*.whl
