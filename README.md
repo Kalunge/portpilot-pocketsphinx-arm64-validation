@@ -36,4 +36,5 @@ A reusable, agent-driven workflow that analyses, ports, tests, and packages open
 
 - [Approved workplan](plan.md)
 - [Manifest and run-state contracts](docs/PORTPILOT_CONTRACTS.md)
+- [Repository analysis skills](docs/PORTPILOT_ANALYSIS_SKILLS.md)
 - [Second application candidate lock](docs/SECOND_APP_CANDIDATE.md)

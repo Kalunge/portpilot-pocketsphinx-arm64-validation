@@ -98,4 +98,9 @@ H0 -> H1 -> H2 -> H3 -> H4 -> H5 -> H6 -> H7 -> H8
   `manifests/whisper-cpp/portpilot.yml`.
 - Contract reference:
   [PortPilot Contracts](docs/PORTPILOT_CONTRACTS.md).
-- H2-H8: pending.
+- H2 repository analysis skills: complete.
+- Analysis reference:
+  [PortPilot Repository Analysis Skills](docs/PORTPILOT_ANALYSIS_SKILLS.md).
+- Clean-checkout architecture decisions: native Arm64 for both PocketSphinx and
+  whisper.cpp.
+- H3-H8: pending.

@@ -11,7 +11,7 @@ source:
   repository: https://github.com/ggml-org/whisper.cpp.git
   revision: 1fe009caeda75f69bc864d6370b10674e45a92bd
   checkoutDirectory: whisper.cpp
-  submodules: true
+  submodules: false
   lineEndings: lf
   patches: []
   resources:
