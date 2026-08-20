@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -37,9 +38,18 @@ def load_manifest(path: Path) -> dict[str, Any]:
 
 def write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="\n") as stream:
+    temporary_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    with temporary_path.open("w", encoding="utf-8", newline="\n") as stream:
         json.dump(value, stream, indent=2, sort_keys=False)
         stream.write("\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    temporary_path.replace(path)
+
+
+def read_json(path: Path) -> Any:
+    with path.open(encoding="utf-8") as stream:
+        return json.load(stream)
 
 
 def iter_repository_files(repository: Path) -> Iterator[Path]:

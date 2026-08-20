@@ -103,4 +103,9 @@ H0 -> H1 -> H2 -> H3 -> H4 -> H5 -> H6 -> H7 -> H8
   [PortPilot Repository Analysis Skills](docs/PORTPILOT_ANALYSIS_SKILLS.md).
 - Clean-checkout architecture decisions: native Arm64 for both PocketSphinx and
   whisper.cpp.
-- H3-H8: pending.
+- H3 planner and orchestrator: complete.
+- Orchestrator reference:
+  [PortPilot Orchestrator](docs/PORTPILOT_ORCHESTRATOR.md).
+- Clean-checkout runs for both projects produce resumable, dependency-aware
+  plans and truthful `not-ready` reports before execution.
+- H4-H8: pending.

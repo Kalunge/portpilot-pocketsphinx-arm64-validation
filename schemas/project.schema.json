@@ -11,6 +11,7 @@
     "source",
     "target",
     "status",
+    "stages",
     "createdAt",
     "updatedAt"
   ],
@@ -30,7 +31,7 @@
     "source": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repository", "revision", "checkoutDirectory"],
+      "required": ["repository", "revision", "checkoutDirectory", "workspace"],
       "properties": {
         "repository": {
           "type": "string",
@@ -41,6 +42,10 @@
           "pattern": "^[0-9a-f]{40}$"
         },
         "checkoutDirectory": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workspace": {
           "type": "string",
           "minLength": 1
         }
@@ -63,6 +68,7 @@
       "enum": [
         "created",
         "analyzing",
+        "analyzed",
         "planned",
         "running",
         "validating",
@@ -71,6 +77,25 @@
         "blocked"
       ]
     },
+    "stages": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["analysis", "planning", "execution", "reporting"],
+      "properties": {
+        "analysis": {
+          "$ref": "#/$defs/stageStatus"
+        },
+        "planning": {
+          "$ref": "#/$defs/stageStatus"
+        },
+        "execution": {
+          "$ref": "#/$defs/stageStatus"
+        },
+        "reporting": {
+          "$ref": "#/$defs/stageStatus"
+        }
+      }
+    },
     "createdAt": {
       "type": "string",
       "format": "date-time"
@@ -78,6 +103,11 @@
     "updatedAt": {
       "type": "string",
       "format": "date-time"
+    }
+  },
+  "$defs": {
+    "stageStatus": {
+      "enum": ["pending", "in-progress", "done", "failed", "blocked"]
     }
   }
 }
