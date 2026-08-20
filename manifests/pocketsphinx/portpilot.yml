@@ -182,7 +182,6 @@ validation:
     platformTag: win_arm64
     nativeFiles:
       - "*.pyd"
-      - "*.dll"
     cleanInstall:
       runner: windows-11-arm
       commands:
