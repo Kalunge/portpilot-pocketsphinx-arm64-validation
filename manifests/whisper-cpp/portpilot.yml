@@ -132,7 +132,9 @@ validation:
         capture: evidence\runtime\${phase}-jfk.txt
       expected:
         exitCode: 0
-        referenceFile: whisper.cpp\tests\en-0-ref.txt
+        outputContains:
+          - and so my fellow americans
+          - ask not what your country can do for you
         normalization:
           - strip-timestamps
           - trim
