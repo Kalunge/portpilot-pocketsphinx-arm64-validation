@@ -36,8 +36,8 @@ toolchain:
         - sox.portable
         - strawberryperl
   pathEntries:
-    - C:\Program Files\Git\usr\bin
     - C:\Strawberry\perl\bin
+    - C:\Program Files\Git\usr\bin
   probes:
     - id: cmake-version
       executable: cmake

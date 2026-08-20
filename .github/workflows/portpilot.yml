@@ -71,7 +71,7 @@ jobs:
 
     steps:
       - name: Check out PortPilot
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ needs.workflow-source.outputs.repository }}
           ref: ${{ needs.workflow-source.outputs.ref }}
@@ -110,7 +110,7 @@ jobs:
 
     steps:
       - name: Check out PortPilot
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ needs.metadata.outputs.portpilot_repository }}
           ref: ${{ needs.metadata.outputs.portpilot_ref }}
@@ -157,13 +157,14 @@ jobs:
           "## PortPilot x64 baseline" >> $env:GITHUB_STEP_SUMMARY
           $summary = ".portpilot-runs\${{ needs.metadata.outputs.project_id }}-ci\evidence\baseline-summary.json"
           if (Test-Path $summary) {
-            Get-Content $summary -Raw | ConvertFrom-Json |
-              ConvertTo-Json -Depth 8 |
-              ForEach-Object { "``````json`n$_`n``````" } >>
-                $env:GITHUB_STEP_SUMMARY
+            $json = Get-Content $summary -Raw | ConvertFrom-Json |
+              ConvertTo-Json -Depth 8
+            Add-Content $env:GITHUB_STEP_SUMMARY '```json'
+            Add-Content $env:GITHUB_STEP_SUMMARY $json
+            Add-Content $env:GITHUB_STEP_SUMMARY '```'
           } else {
-            "Baseline did not produce a completion summary." >>
-              $env:GITHUB_STEP_SUMMARY
+            Add-Content $env:GITHUB_STEP_SUMMARY `
+              "Baseline did not produce a completion summary."
           }
 
       - name: Upload baseline state
@@ -182,7 +183,7 @@ jobs:
 
     steps:
       - name: Check out PortPilot
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ needs.metadata.outputs.portpilot_repository }}
           ref: ${{ needs.metadata.outputs.portpilot_ref }}
@@ -259,13 +260,14 @@ jobs:
           "## PortPilot native producer" >> $env:GITHUB_STEP_SUMMARY
           $summary = ".portpilot-runs\${{ needs.metadata.outputs.project_id }}-ci\evidence\target-summary.json"
           if (Test-Path $summary) {
-            Get-Content $summary -Raw | ConvertFrom-Json |
-              ConvertTo-Json -Depth 8 |
-              ForEach-Object { "``````json`n$_`n``````" } >>
-                $env:GITHUB_STEP_SUMMARY
+            $json = Get-Content $summary -Raw | ConvertFrom-Json |
+              ConvertTo-Json -Depth 8
+            Add-Content $env:GITHUB_STEP_SUMMARY '```json'
+            Add-Content $env:GITHUB_STEP_SUMMARY $json
+            Add-Content $env:GITHUB_STEP_SUMMARY '```'
           } else {
-            "Native execution did not produce a completion summary." >>
-              $env:GITHUB_STEP_SUMMARY
+            Add-Content $env:GITHUB_STEP_SUMMARY `
+              "Native execution did not produce a completion summary."
           }
 
       - name: Upload native evidence
@@ -285,7 +287,7 @@ jobs:
 
     steps:
       - name: Check out PortPilot
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ needs.metadata.outputs.portpilot_repository }}
           ref: ${{ needs.metadata.outputs.portpilot_ref }}
@@ -346,13 +348,14 @@ jobs:
           "## PortPilot clean-install consumer" >> $env:GITHUB_STEP_SUMMARY
           $summary = "portpilot-artifacts\run\evidence\package\clean-install.json"
           if (Test-Path $summary) {
-            Get-Content $summary -Raw | ConvertFrom-Json |
-              ConvertTo-Json -Depth 8 |
-              ForEach-Object { "``````json`n$_`n``````" } >>
-                $env:GITHUB_STEP_SUMMARY
+            $json = Get-Content $summary -Raw | ConvertFrom-Json |
+              ConvertTo-Json -Depth 8
+            Add-Content $env:GITHUB_STEP_SUMMARY '```json'
+            Add-Content $env:GITHUB_STEP_SUMMARY $json
+            Add-Content $env:GITHUB_STEP_SUMMARY '```'
           } else {
-            "Clean installation did not produce a completion summary." >>
-              $env:GITHUB_STEP_SUMMARY
+            Add-Content $env:GITHUB_STEP_SUMMARY `
+              "Clean installation did not produce a completion summary."
           }
 
       - name: Upload clean-install evidence
