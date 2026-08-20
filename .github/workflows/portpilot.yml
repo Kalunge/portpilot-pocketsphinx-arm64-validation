@@ -91,18 +91,17 @@ jobs:
         run: |
           $metadata = portpilot ci-metadata --manifest "$env:PORTPILOT_MANIFEST" |
             ConvertFrom-Json
-          "project_id=$($metadata.projectId)" >> $env:GITHUB_OUTPUT
-          "checkout_directory=$($metadata.checkoutDirectory)" >> $env:GITHUB_OUTPUT
-          "baseline_runner=$($metadata.baselineRunner)" >> $env:GITHUB_OUTPUT
-          "target_runner=$($metadata.targetRunner)" >> $env:GITHUB_OUTPUT
-          "python_version=$($metadata.pythonVersion)" >> $env:GITHUB_OUTPUT
-          "baseline_python_architecture=$($metadata.baselinePythonArchitecture)" >>
-            $env:GITHUB_OUTPUT
-          "target_python_architecture=$($metadata.targetPythonArchitecture)" >>
-            $env:GITHUB_OUTPUT
-          "has_package=$($metadata.hasPackage.ToString().ToLowerInvariant())" >>
-            $env:GITHUB_OUTPUT
-          "retention_days=$($metadata.retentionDays)" >> $env:GITHUB_OUTPUT
+          @(
+            "project_id=$($metadata.projectId)"
+            "checkout_directory=$($metadata.checkoutDirectory)"
+            "baseline_runner=$($metadata.baselineRunner)"
+            "target_runner=$($metadata.targetRunner)"
+            "python_version=$($metadata.pythonVersion)"
+            "baseline_python_architecture=$($metadata.baselinePythonArchitecture)"
+            "target_python_architecture=$($metadata.targetPythonArchitecture)"
+            "has_package=$($metadata.hasPackage.ToString().ToLowerInvariant())"
+            "retention_days=$($metadata.retentionDays)"
+          ) | Out-File -Append -FilePath $env:GITHUB_OUTPUT -Encoding utf8
 
   baseline:
     needs: metadata
