@@ -41,3 +41,4 @@ A reusable, agent-driven workflow that analyses, ports, tests, and packages open
 - [Build and validation adapters](docs/PORTPILOT_EXECUTION_ADAPTERS.md)
 - [Reusable Windows Arm CI](docs/PORTPILOT_CI.md)
 - [Second application candidate lock](docs/SECOND_APP_CANDIDATE.md)
+- [whisper.cpp native Windows Arm64 proof](docs/WHISPER_CPP_ARM64_PROOF.md)

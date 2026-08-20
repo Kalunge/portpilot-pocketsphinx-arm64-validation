@@ -118,4 +118,8 @@ H0 -> H1 -> H2 -> H3 -> H4 -> H5 -> H6 -> H7 -> H8
   [PortPilot Reusable CI](docs/PORTPILOT_CI.md).
 - Public producer/consumer proof:
   [GitHub Actions run 32363364618](https://github.com/Kalunge/portpilot-pocketsphinx-arm64-validation/actions/runs/32363364618).
-- H6-H8: pending.
+- H6 second-application proof: complete.
+- whisper.cpp native proof:
+  [Windows Arm64 proof](docs/WHISPER_CPP_ARM64_PROOF.md) and
+  [GitHub Actions run 32389275726](https://github.com/Kalunge/portpilot-pocketsphinx-arm64-validation/actions/runs/32389275726).
+- H7-H8: pending.

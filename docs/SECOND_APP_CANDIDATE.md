@@ -73,7 +73,7 @@ specifically Windows Arm64 rather than general Arm portability.
 | Native target | Windows Arm64 |
 | Expected primary executable | `whisper-cli.exe` |
 | Deterministic input | `samples/jfk.wav` |
-| Reference output | `tests/en-0-ref.txt` |
+| Reference output | Normalized JFK transcript assertions in `portpilot.yml` |
 
 The pinned repository contains CTest integration, native C/C++ tests, the JFK
 audio fixture, and reference English transcripts.
@@ -94,21 +94,21 @@ audio fixture, and reference English transcripts.
 3. Verify every final `.exe` and `.dll` as PE machine type `0xAA64`.
 4. Run CTest on a `windows-11-arm` runner.
 5. Transcribe `samples/jfk.wav` with the same model.
-6. Compare the normalized transcript with the x64 baseline and checked-in
-   reference.
+6. Compare the normalized transcript with the pinned JFK assertions.
 7. Compare native Arm64 execution time with x64 emulation if the runner permits
    both.
 
 Expected configure shape:
 
 ```powershell
-cmake -S . -B build-arm64 -A ARM64 `
+cmake -S . -B build-arm64 -A ARM64 -T ClangCL `
   -DGGML_NATIVE=OFF `
   -DWHISPER_BUILD_TESTS=ON `
   -DWHISPER_BUILD_EXAMPLES=ON
 ```
 
-This command is a starting hypothesis, not yet validated evidence.
+This command shape is validated by
+[public run 32389275726](https://github.com/Kalunge/portpilot-pocketsphinx-arm64-validation/actions/runs/32389275726).
 
 ## Skill reuse target
 

@@ -75,6 +75,30 @@ RULES = (
         "A hard-coded x64 path or platform may prevent Arm64 configuration.",
         "cmake-windows-arm64",
     ),
+    Rule(
+        "compiler",
+        "high",
+        re.compile(
+            r"(?:MSVC|Clang|GCC).*(?:not supported|unsupported).*(?:ARM|ARM64)"
+            r"|(?:ARM|ARM64).*(?:requires?|use).*(?:Clang|GCC|MSVC)",
+            re.IGNORECASE,
+        ),
+        "An explicit Arm compiler restriction requires a compatible target toolchain.",
+        "cmake-windows-arm64",
+        frozenset({".cmake"}),
+    ),
+    Rule(
+        "build-system",
+        "medium",
+        re.compile(
+            r"configure_file\s*\([^)]*\$\{CMAKE_SOURCE_DIR\}"
+            r"[^)]*\$\{CMAKE_SOURCE_DIR\}",
+            re.IGNORECASE,
+        ),
+        "CMake configuration writes into the source tree and can invalidate reproducible build state.",
+        "cmake-out-of-source",
+        frozenset({".cmake"}),
+    ),
 )
 
 

@@ -33,6 +33,8 @@ class AnalysisTests(unittest.TestCase):
             find_package(OpenSSL REQUIRED)
             add_subdirectory(third_party/portable)
             set(LEGACY_LIBRARY lib/x64/legacy.lib)
+            configure_file(${CMAKE_SOURCE_DIR}/input.in ${CMAKE_SOURCE_DIR}/output.json)
+            message(FATAL_ERROR "MSVC is not supported for ARM, use clang")
             add_executable(fixture src/main.cpp)
             """,
             encoding="utf-8",
@@ -104,6 +106,14 @@ class AnalysisTests(unittest.TestCase):
         self.assertIn(
             "build-system",
             {item["category"] for item in findings},
+        )
+        self.assertIn(
+            "compiler",
+            {item["category"] for item in findings},
+        )
+        self.assertIn(
+            "cmake-out-of-source",
+            {item.get("proposedSkill") for item in findings},
         )
         self.assertEqual("arm64", decision["selectedArchitecture"])
 
