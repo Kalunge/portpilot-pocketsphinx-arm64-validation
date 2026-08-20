@@ -15,6 +15,14 @@ from portpilot.orchestrator import (
     update_task_status,
 )
 from portpilot.execution.runner import execute_phase, execution_is_complete
+from portpilot.ci import (
+    bootstrap_toolchain,
+    checkout_source,
+    collect_artifacts,
+    consume_package,
+    manifest_metadata,
+    rebind_workspace,
+)
 from portpilot.state import RunState
 
 
@@ -61,6 +69,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     execute_parser.add_argument("--package", action="store_true")
 
+    metadata_parser = subparsers.add_parser("ci-metadata")
+    metadata_parser.add_argument("--manifest", required=True, type=Path)
+
+    checkout_parser = subparsers.add_parser("checkout-source")
+    checkout_parser.add_argument("--manifest", required=True, type=Path)
+    checkout_parser.add_argument("--workspace", type=Path, default=Path.cwd())
+
+    bootstrap_parser = subparsers.add_parser("bootstrap")
+    bootstrap_parser.add_argument("--manifest", required=True, type=Path)
+
+    rebind_parser = subparsers.add_parser("rebind")
+    rebind_parser.add_argument("--run-directory", required=True, type=Path)
+    rebind_parser.add_argument("--repository", required=True, type=Path)
+    rebind_parser.add_argument("--manifest", required=True, type=Path)
+
+    consume_parser = subparsers.add_parser("consume")
+    consume_parser.add_argument("--run-directory", required=True, type=Path)
+    consume_parser.add_argument("--artifacts-directory", required=True, type=Path)
+    consume_parser.add_argument("--manifest", required=True, type=Path)
+
+    collect_parser = subparsers.add_parser("collect")
+    collect_parser.add_argument("--run-directory", required=True, type=Path)
+    collect_parser.add_argument("--output-directory", required=True, type=Path)
+
     task_parser = subparsers.add_parser("task")
     task_parser.add_argument("--run-directory", required=True, type=Path)
     task_parser.add_argument("--id", required=True)
@@ -80,6 +112,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def execute(args: argparse.Namespace) -> None:
+    if args.command == "ci-metadata":
+        print_json(manifest_metadata(args.manifest.resolve()))
+        return
+    if args.command == "checkout-source":
+        print(checkout_source(args.manifest.resolve(), args.workspace.resolve()))
+        return
+    if args.command == "bootstrap":
+        print_json(bootstrap_toolchain(args.manifest.resolve()))
+        return
+
     if args.command in {"analyze", "run"}:
         state = state_from_start_arguments(args)
         if args.command == "run":
@@ -96,6 +138,15 @@ def execute(args: argparse.Namespace) -> None:
     if args.command == "status":
         with state.lock():
             print_json(status_summary(state))
+    elif args.command == "rebind":
+        with state.lock():
+            print_json(
+                rebind_workspace(
+                    state,
+                    args.repository.resolve(),
+                    args.manifest.resolve(),
+                )
+            )
     elif args.command == "execute":
         with state.lock():
             project = state.load_project()
@@ -120,6 +171,35 @@ def execute(args: argparse.Namespace) -> None:
             project["stages"]["reporting"] = "pending"
             state.save_project(project)
             print_json(summary)
+    elif args.command == "consume":
+        with state.lock():
+            (state.root / "report.json").unlink(missing_ok=True)
+            try:
+                summary = consume_package(
+                    state,
+                    args.artifacts_directory.resolve(),
+                    args.manifest.resolve(),
+                )
+            except BaseException:
+                project = state.load_project()
+                project["stages"]["execution"] = "failed"
+                project["status"] = "failed"
+                state.save_project(project)
+                raise
+            project = state.load_project()
+            complete = execution_is_complete(state)
+            project["stages"]["execution"] = "done" if complete else "in-progress"
+            project["status"] = "validating" if complete else "running"
+            project["stages"]["reporting"] = "pending"
+            state.save_project(project)
+            print_json(summary)
+    elif args.command == "collect":
+        print_json(
+            collect_artifacts(
+                state,
+                args.output_directory.resolve(),
+            )
+        )
     elif args.command == "plan":
         with state.lock():
             if state.load_project()["stages"]["planning"] != "done":

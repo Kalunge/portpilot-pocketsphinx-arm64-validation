@@ -44,7 +44,10 @@ def execution_is_complete(state: RunState) -> bool:
     if not phase_summary_passed(target, "target", manifest):
         return False
     package_required = "package" in manifest["validation"]
-    return not package_required or target.get("package") is not None
+    if not package_required:
+        return True
+    clean_install = state.root / "evidence" / "package" / "clean-install.json"
+    return target.get("package") is not None and clean_install.is_file()
 
 
 def phase_summary_passed(

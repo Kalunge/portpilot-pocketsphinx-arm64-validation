@@ -1,0 +1,366 @@
+name: PortPilot reusable Windows Arm validation
+
+on:
+  push:
+    paths:
+      - ".github/workflows/portpilot.yml"
+      - "manifests/**"
+      - "patches/**"
+      - "portpilot/**"
+      - "schemas/**"
+  workflow_call:
+    inputs:
+      manifest_path:
+        description: Repository-relative path to a PortPilot manifest
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      manifest_path:
+        description: Repository-relative path to a PortPilot manifest
+        required: true
+        type: choice
+        options:
+          - manifests/pocketsphinx/portpilot.yml
+          - manifests/whisper-cpp/portpilot.yml
+        default: manifests/pocketsphinx/portpilot.yml
+
+permissions:
+  contents: read
+
+env:
+  PORTPILOT_MANIFEST: portpilot/${{ inputs.manifest_path || 'manifests/pocketsphinx/portpilot.yml' }}
+
+jobs:
+  workflow-source:
+    runs-on: ubuntu-latest
+    outputs:
+      repository: ${{ steps.source.outputs.repository }}
+      ref: ${{ steps.source.outputs.ref }}
+
+    steps:
+      - name: Resolve reusable workflow source
+        id: source
+        shell: bash
+        run: |
+          workflow_ref='${{ github.workflow_ref }}'
+          repository="${workflow_ref%%/.github/workflows/*}"
+          ref='${{ github.workflow_sha }}'
+          if [[ -z "$repository" || -z "$ref" || "$repository" == "$workflow_ref" ]]; then
+            echo "Unable to parse workflow source: $workflow_ref" >&2
+            exit 1
+          fi
+          echo "repository=$repository" >> "$GITHUB_OUTPUT"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+  metadata:
+    needs: workflow-source
+    runs-on: ubuntu-latest
+    outputs:
+      portpilot_repository: ${{ needs.workflow-source.outputs.repository }}
+      portpilot_ref: ${{ needs.workflow-source.outputs.ref }}
+      project_id: ${{ steps.manifest.outputs.project_id }}
+      checkout_directory: ${{ steps.manifest.outputs.checkout_directory }}
+      baseline_runner: ${{ steps.manifest.outputs.baseline_runner }}
+      target_runner: ${{ steps.manifest.outputs.target_runner }}
+      python_version: ${{ steps.manifest.outputs.python_version }}
+      baseline_python_architecture: ${{ steps.manifest.outputs.baseline_python_architecture }}
+      target_python_architecture: ${{ steps.manifest.outputs.target_python_architecture }}
+      has_package: ${{ steps.manifest.outputs.has_package }}
+      retention_days: ${{ steps.manifest.outputs.retention_days }}
+
+    steps:
+      - name: Check out PortPilot
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.workflow-source.outputs.repository }}
+          ref: ${{ needs.workflow-source.outputs.ref }}
+          path: portpilot
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install PortPilot
+        run: python -m pip install -e portpilot
+
+      - name: Read manifest metadata
+        id: manifest
+        shell: pwsh
+        run: |
+          $metadata = portpilot ci-metadata --manifest "$env:PORTPILOT_MANIFEST" |
+            ConvertFrom-Json
+          "project_id=$($metadata.projectId)" >> $env:GITHUB_OUTPUT
+          "checkout_directory=$($metadata.checkoutDirectory)" >> $env:GITHUB_OUTPUT
+          "baseline_runner=$($metadata.baselineRunner)" >> $env:GITHUB_OUTPUT
+          "target_runner=$($metadata.targetRunner)" >> $env:GITHUB_OUTPUT
+          "python_version=$($metadata.pythonVersion)" >> $env:GITHUB_OUTPUT
+          "baseline_python_architecture=$($metadata.baselinePythonArchitecture)" >>
+            $env:GITHUB_OUTPUT
+          "target_python_architecture=$($metadata.targetPythonArchitecture)" >>
+            $env:GITHUB_OUTPUT
+          "has_package=$($metadata.hasPackage.ToString().ToLowerInvariant())" >>
+            $env:GITHUB_OUTPUT
+          "retention_days=$($metadata.retentionDays)" >> $env:GITHUB_OUTPUT
+
+  baseline:
+    needs: metadata
+    runs-on: ${{ needs.metadata.outputs.baseline_runner }}
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out PortPilot
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.metadata.outputs.portpilot_repository }}
+          ref: ${{ needs.metadata.outputs.portpilot_ref }}
+          path: portpilot
+
+      - name: Set up baseline Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ needs.metadata.outputs.python_version }}
+          architecture: ${{ needs.metadata.outputs.baseline_python_architecture }}
+
+      - name: Install PortPilot
+        shell: pwsh
+        run: python -m pip install -e portpilot
+
+      - name: Install manifest dependencies
+        shell: pwsh
+        run: portpilot bootstrap --manifest "$env:PORTPILOT_MANIFEST"
+
+      - name: Check out pinned application source
+        shell: pwsh
+        run: portpilot checkout-source --manifest "$env:PORTPILOT_MANIFEST"
+
+      - name: Analyze and plan
+        shell: pwsh
+        run: |
+          portpilot run `
+            --manifest "$env:PORTPILOT_MANIFEST" `
+            --repository "${{ needs.metadata.outputs.checkout_directory }}" `
+            --runs-directory .portpilot-runs `
+            --run-id "${{ needs.metadata.outputs.project_id }}-ci"
+
+      - name: Execute x64 baseline
+        shell: pwsh
+        run: |
+          portpilot execute `
+            --run-directory ".portpilot-runs\${{ needs.metadata.outputs.project_id }}-ci" `
+            --phase baseline
+
+      - name: Write baseline summary
+        if: always()
+        shell: pwsh
+        run: |
+          "## PortPilot x64 baseline" >> $env:GITHUB_STEP_SUMMARY
+          $summary = ".portpilot-runs\${{ needs.metadata.outputs.project_id }}-ci\evidence\baseline-summary.json"
+          if (Test-Path $summary) {
+            Get-Content $summary -Raw | ConvertFrom-Json |
+              ConvertTo-Json -Depth 8 |
+              ForEach-Object { "``````json`n$_`n``````" } >>
+                $env:GITHUB_STEP_SUMMARY
+          } else {
+            "Baseline did not produce a completion summary." >>
+              $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Upload baseline state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.metadata.outputs.project_id }}-portpilot-baseline
+          path: .portpilot-runs/${{ needs.metadata.outputs.project_id }}-ci
+          if-no-files-found: error
+          retention-days: ${{ fromJSON(needs.metadata.outputs.retention_days) }}
+
+  native-producer:
+    needs: [metadata, baseline]
+    runs-on: ${{ needs.metadata.outputs.target_runner }}
+    timeout-minutes: 75
+
+    steps:
+      - name: Check out PortPilot
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.metadata.outputs.portpilot_repository }}
+          ref: ${{ needs.metadata.outputs.portpilot_ref }}
+          path: portpilot
+
+      - name: Set up target Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ needs.metadata.outputs.python_version }}
+          architecture: ${{ needs.metadata.outputs.target_python_architecture }}
+
+      - name: Install PortPilot
+        shell: pwsh
+        run: python -m pip install -e portpilot
+
+      - name: Install manifest dependencies
+        shell: pwsh
+        run: portpilot bootstrap --manifest "$env:PORTPILOT_MANIFEST"
+
+      - name: Download baseline state
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ needs.metadata.outputs.project_id }}-portpilot-baseline
+          path: .portpilot-runs/${{ needs.metadata.outputs.project_id }}-ci
+
+      - name: Check out pinned application source
+        shell: pwsh
+        run: portpilot checkout-source --manifest "$env:PORTPILOT_MANIFEST"
+
+      - name: Rebind downloaded run state
+        shell: pwsh
+        run: |
+          portpilot rebind `
+            --run-directory ".portpilot-runs\${{ needs.metadata.outputs.project_id }}-ci" `
+            --repository "${{ needs.metadata.outputs.checkout_directory }}" `
+            --manifest "$env:PORTPILOT_MANIFEST"
+
+      - name: Execute native target
+        if: needs.metadata.outputs.has_package != 'true'
+        shell: pwsh
+        run: |
+          portpilot execute `
+            --run-directory ".portpilot-runs\${{ needs.metadata.outputs.project_id }}-ci" `
+            --phase target
+
+      - name: Execute and package native target
+        if: needs.metadata.outputs.has_package == 'true'
+        shell: pwsh
+        run: |
+          portpilot execute `
+            --run-directory ".portpilot-runs\${{ needs.metadata.outputs.project_id }}-ci" `
+            --phase target `
+            --package
+
+      - name: Create current report
+        if: success()
+        shell: pwsh
+        run: |
+          portpilot report `
+            --run-directory ".portpilot-runs\${{ needs.metadata.outputs.project_id }}-ci"
+
+      - name: Collect fixed artifact layout
+        if: always()
+        shell: pwsh
+        run: |
+          portpilot collect `
+            --run-directory ".portpilot-runs\${{ needs.metadata.outputs.project_id }}-ci" `
+            --output-directory portpilot-artifacts
+
+      - name: Write native summary
+        if: always()
+        shell: pwsh
+        run: |
+          "## PortPilot native producer" >> $env:GITHUB_STEP_SUMMARY
+          $summary = ".portpilot-runs\${{ needs.metadata.outputs.project_id }}-ci\evidence\target-summary.json"
+          if (Test-Path $summary) {
+            Get-Content $summary -Raw | ConvertFrom-Json |
+              ConvertTo-Json -Depth 8 |
+              ForEach-Object { "``````json`n$_`n``````" } >>
+                $env:GITHUB_STEP_SUMMARY
+          } else {
+            "Native execution did not produce a completion summary." >>
+              $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Upload native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.metadata.outputs.project_id }}-windows-arm-evidence
+          path: portpilot-artifacts
+          if-no-files-found: error
+          retention-days: ${{ fromJSON(needs.metadata.outputs.retention_days) }}
+
+  clean-install-consumer:
+    if: needs.metadata.outputs.has_package == 'true'
+    needs: [metadata, native-producer]
+    runs-on: ${{ needs.metadata.outputs.target_runner }}
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out PortPilot
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.metadata.outputs.portpilot_repository }}
+          ref: ${{ needs.metadata.outputs.portpilot_ref }}
+          path: portpilot
+
+      - name: Set up target Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ needs.metadata.outputs.python_version }}
+          architecture: ${{ needs.metadata.outputs.target_python_architecture }}
+
+      - name: Install PortPilot
+        shell: pwsh
+        run: python -m pip install -e portpilot
+
+      - name: Download native evidence
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ needs.metadata.outputs.project_id }}-windows-arm-evidence
+          path: portpilot-artifacts
+
+      - name: Check out pinned application fixtures
+        shell: pwsh
+        run: portpilot checkout-source --manifest "$env:PORTPILOT_MANIFEST"
+
+      - name: Rebind downloaded run state
+        shell: pwsh
+        run: |
+          portpilot rebind `
+            --run-directory "portpilot-artifacts\run" `
+            --repository "${{ needs.metadata.outputs.checkout_directory }}" `
+            --manifest "$env:PORTPILOT_MANIFEST"
+
+      - name: Validate clean package installation
+        shell: pwsh
+        run: |
+          portpilot consume `
+            --run-directory "portpilot-artifacts\run" `
+            --artifacts-directory portpilot-artifacts `
+            --manifest "$env:PORTPILOT_MANIFEST"
+
+      - name: Create final report
+        shell: pwsh
+        run: portpilot report --run-directory "portpilot-artifacts\run"
+
+      - name: Collect consumer evidence
+        if: always()
+        shell: pwsh
+        run: |
+          portpilot collect `
+            --run-directory "portpilot-artifacts\run" `
+            --output-directory portpilot-consumer-artifacts
+
+      - name: Write clean-install summary
+        if: always()
+        shell: pwsh
+        run: |
+          "## PortPilot clean-install consumer" >> $env:GITHUB_STEP_SUMMARY
+          $summary = "portpilot-artifacts\run\evidence\package\clean-install.json"
+          if (Test-Path $summary) {
+            Get-Content $summary -Raw | ConvertFrom-Json |
+              ConvertTo-Json -Depth 8 |
+              ForEach-Object { "``````json`n$_`n``````" } >>
+                $env:GITHUB_STEP_SUMMARY
+          } else {
+            "Clean installation did not produce a completion summary." >>
+              $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Upload clean-install evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.metadata.outputs.project_id }}-clean-install-evidence
+          path: portpilot-consumer-artifacts
+          if-no-files-found: error
+          retention-days: ${{ fromJSON(needs.metadata.outputs.retention_days) }}

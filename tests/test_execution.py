@@ -600,6 +600,9 @@ class ExecutionTests(unittest.TestCase):
             json.dumps(target),
             encoding="utf-8",
         )
+        clean_install = evidence / "package" / "clean-install.json"
+        clean_install.parent.mkdir()
+        clean_install.write_text('{"passed": true}\n', encoding="utf-8")
         self.assertTrue(execution_is_complete(state))
 
         manifest["validation"]["package"] = {"kind": "python-wheel"}
