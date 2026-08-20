@@ -13,7 +13,12 @@ source:
   checkoutDirectory: whisper.cpp
   submodules: false
   lineEndings: lf
-  patches: []
+  patches:
+    - path: patches\whisper-cpp\0001-limit-javascript-package-generation-to-emscripten.patch
+      strip: 1
+      assertions:
+        - path: CMakeLists.txt
+          contains: "if (EMSCRIPTEN)"
   resources:
     - id: tiny-en-model
       url: https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin

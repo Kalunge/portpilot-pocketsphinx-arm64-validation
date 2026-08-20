@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: PortPilot <portpilot@example.invalid>
+Date: Thu, 20 Aug 2026 18:50:00 +0300
+Subject: [PATCH] Limit JavaScript package generation to Emscripten
+
+---
+ CMakeLists.txt | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fca9f20..0000000 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -27,7 +27,9 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+     include(git-vars)
+ 
+     # configure project version
+-    configure_file(${CMAKE_SOURCE_DIR}/bindings/javascript/package-tmpl.json ${CMAKE_SOURCE_DIR}/bindings/javascript/package.json @ONLY)
++    if (EMSCRIPTEN)
++        configure_file(${CMAKE_SOURCE_DIR}/bindings/javascript/package-tmpl.json ${CMAKE_SOURCE_DIR}/bindings/javascript/package.json @ONLY)
++    endif()
+ else()
+     set(WHISPER_STANDALONE OFF)
+ endif()
+-- 
+2.51.0.windows.2
