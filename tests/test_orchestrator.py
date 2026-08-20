@@ -9,13 +9,14 @@ from pathlib import Path
 
 import yaml
 
-from portpilot.analysis.common import read_json
+from portpilot.analysis.common import read_json, write_json
 from portpilot.orchestrator import (
     run_analysis_stage,
     run_pipeline,
     update_task_status,
 )
 from portpilot.planner import assert_acyclic
+from portpilot.reporting import create_report
 from portpilot.state import RunState
 
 
@@ -127,6 +128,23 @@ class OrchestratorTests(unittest.TestCase):
 
         self.assertTrue(second_status["resumed"])
         self.assertEqual(first_status["tasks"], second_status["tasks"])
+
+    def test_completed_tasks_cannot_bypass_execution_evidence(self) -> None:
+        state = self.create_state()
+        run_pipeline(state)
+        for path in (state.root / "tasks").glob("*.json"):
+            task = read_json(path)
+            task["status"] = "done"
+            write_json(path, task)
+
+        report = create_report(state.root)
+
+        self.assertEqual("not-ready", report["verdict"])
+        tests_gate = next(
+            gate for gate in report["gates"] if gate["id"] == "tests"
+        )
+        self.assertEqual("not-applicable", tests_gate["status"])
+        self.assertIn("Execution evidence is incomplete.", report["remainingRisks"])
 
     def test_dirty_source_fails_analysis_without_success_state(self) -> None:
         state = self.create_state("dirty-run")

@@ -14,6 +14,7 @@ from portpilot.orchestrator import (
     status_summary,
     update_task_status,
 )
+from portpilot.execution.runner import execute_phase, execution_is_complete
 from portpilot.state import RunState
 
 
@@ -51,6 +52,15 @@ def build_parser() -> argparse.ArgumentParser:
         command_parser = subparsers.add_parser(name)
         command_parser.add_argument("--run-directory", required=True, type=Path)
 
+    execute_parser = subparsers.add_parser("execute")
+    execute_parser.add_argument("--run-directory", required=True, type=Path)
+    execute_parser.add_argument(
+        "--phase",
+        required=True,
+        choices=["baseline", "target"],
+    )
+    execute_parser.add_argument("--package", action="store_true")
+
     task_parser = subparsers.add_parser("task")
     task_parser.add_argument("--run-directory", required=True, type=Path)
     task_parser.add_argument("--id", required=True)
@@ -86,6 +96,30 @@ def execute(args: argparse.Namespace) -> None:
     if args.command == "status":
         with state.lock():
             print_json(status_summary(state))
+    elif args.command == "execute":
+        with state.lock():
+            project = state.load_project()
+            if project["stages"]["planning"] != "done":
+                raise RuntimeError("planning must complete before execution")
+            project["stages"]["execution"] = "in-progress"
+            project["status"] = "running"
+            state.save_project(project)
+            (state.root / "report.json").unlink(missing_ok=True)
+            try:
+                summary = execute_phase(state, args.phase, args.package)
+            except BaseException:
+                project = state.load_project()
+                project["stages"]["execution"] = "failed"
+                project["status"] = "failed"
+                state.save_project(project)
+                raise
+            project = state.load_project()
+            complete = execution_is_complete(state)
+            project["stages"]["execution"] = "done" if complete else "in-progress"
+            project["status"] = "validating" if complete else "running"
+            project["stages"]["reporting"] = "pending"
+            state.save_project(project)
+            print_json(summary)
     elif args.command == "plan":
         with state.lock():
             if state.load_project()["stages"]["planning"] != "done":

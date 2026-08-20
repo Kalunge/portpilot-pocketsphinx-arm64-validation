@@ -108,4 +108,9 @@ H0 -> H1 -> H2 -> H3 -> H4 -> H5 -> H6 -> H7 -> H8
   [PortPilot Orchestrator](docs/PORTPILOT_ORCHESTRATOR.md).
 - Clean-checkout runs for both projects produce resumable, dependency-aware
   plans and truthful `not-ready` reports before execution.
-- H4-H8: pending.
+- H4 build and validation adapters: complete.
+- Execution adapter reference:
+  [PortPilot Execution Adapters](docs/PORTPILOT_EXECUTION_ADAPTERS.md).
+- The generic PocketSphinx x64 baseline preserves its exact nine-failure
+  Windows parity set and passes deterministic recognition.
+- H5-H8: pending.

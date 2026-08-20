@@ -2,9 +2,8 @@
 
 ## Purpose
 
-H3 provides a thin, resumable CLI around the manifest and analysis contracts.
-It coordinates durable stages and tasks; it does not yet edit source or execute
-the build commands in a manifest. Build and validation handlers are H4.
+PortPilot provides a resumable CLI around the manifest, analysis, planning, and
+execution contracts. H4 adds policy-constrained build and validation handlers.
 
 Install the development CLI:
 
@@ -39,6 +38,8 @@ Continue individual stages:
 portpilot plan --run-directory runs\whisper-demo
 portpilot status --run-directory runs\whisper-demo
 portpilot report --run-directory runs\whisper-demo
+portpilot execute --run-directory runs\whisper-demo --phase baseline
+portpilot execute --run-directory runs\whisper-demo --phase target
 ```
 
 Update a task through its guarded state machine:
@@ -85,11 +86,11 @@ or build a different source state.
 
 ## Stages and resumption
 
-| Stage | H3 behavior |
+| Stage | Behavior |
 |---|---|
 | Analysis | Runs H2 skills and writes validated inventory, dependency, finding, and decision outputs |
 | Planning | Groups findings by skill and writes validated task files plus an acyclic graph |
-| Execution | Remains pending until H4 supplies build and validation handlers |
+| Execution | Runs manifest tool probes, builds, parity checks, architecture checks, runtime scenarios, and optional package auditing |
 | Reporting | Writes the current evidence, gate status, unresolved risks, and readiness verdict |
 
 Re-running `portpilot run` skips completed analysis and planning stages and
@@ -116,9 +117,6 @@ Task IDs are schema-validated before filesystem access. Any task update
 invalidates the existing report so stale readiness evidence cannot be mistaken
 for current state.
 
-## Current boundary
-
-H3 intentionally stops at a truthful `not-ready` report with
-`execution: pending`. H4 will bind manifest commands to allow-listed process
-execution, capture results, and advance tasks only when their acceptance gates
-pass.
+Execution details and evidence paths are documented in
+[PortPilot Execution Adapters](PORTPILOT_EXECUTION_ADAPTERS.md). Native target
+execution and clean-install isolation are supplied by the H5 CI pipeline.

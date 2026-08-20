@@ -5,6 +5,8 @@ from typing import Any
 
 from portpilot.analysis.common import read_json, write_json
 from portpilot.contracts import validate_contract
+from portpilot.execution.runner import execution_is_complete
+from portpilot.state import RunState
 
 
 def load_tasks(run_directory: Path) -> list[dict[str, Any]]:
@@ -19,6 +21,18 @@ def create_report(run_directory: Path) -> dict[str, Any]:
     decision = read_json(run_directory / "architecture-decision.json")
     findings = read_json(run_directory / "findings.json")
     tasks = load_tasks(run_directory)
+    baseline_path = run_directory / "evidence" / "baseline-summary.json"
+    target_path = run_directory / "evidence" / "target-summary.json"
+    phase_summaries = [
+        read_json(path) for path in (baseline_path, target_path) if path.is_file()
+    ]
+    execution_complete = execution_is_complete(RunState.load(run_directory))
+    test_suites = [
+        suite for summary in phase_summaries for suite in summary["testSuites"]
+    ]
+    unexpected_failures = sum(
+        len(suite["unexpectedFailures"]) for suite in test_suites
+    )
 
     unfinished = [task for task in tasks if task["status"] != "done"]
     failed = [
@@ -47,6 +61,12 @@ def create_report(run_directory: Path) -> dict[str, Any]:
         )
         if path.is_file()
     ]
+    execution_evidence = [
+        str(path.relative_to(run_directory)).replace("\\", "/")
+        for path in (baseline_path, target_path)
+        if path.is_file()
+    ]
+    evidence.extend(execution_evidence)
     report = {
         "runId": project["runId"],
         "projectId": project["projectId"],
@@ -56,8 +76,8 @@ def create_report(run_directory: Path) -> dict[str, Any]:
         "summary": {
             "findings": len(findings),
             "tasks": len(tasks),
-            "tests": 0,
-            "unexpectedFailures": 0,
+            "tests": len(test_suites),
+            "unexpectedFailures": unexpected_failures,
         },
         "gates": [
             {
@@ -94,21 +114,32 @@ def create_report(run_directory: Path) -> dict[str, Any]:
             },
             {
                 "id": "tests",
-                "status": "not-applicable",
-                "evidence": [],
+                "status": (
+                    "passed"
+                    if execution_complete
+                    else "failed"
+                    if phase_summaries
+                    else "not-applicable"
+                ),
+                "evidence": execution_evidence,
             },
         ],
         "evidence": evidence,
         "remainingRisks": [
             f"{task['id']}: {task['title']}" for task in unfinished
-        ],
+        ]
+        + ([] if execution_complete else ["Execution evidence is incomplete."]),
         "verdict": (
             "ready"
-            if tasks and not unfinished and architecture_status == "passed"
+            if (
+                tasks
+                and not unfinished
+                and architecture_status == "passed"
+                and execution_complete
+            )
             else "not-ready"
         ),
     }
     validate_contract("report.schema.json", report)
     write_json(run_directory / "report.json", report)
     return report
-
