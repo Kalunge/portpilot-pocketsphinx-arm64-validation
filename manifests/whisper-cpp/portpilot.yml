@@ -75,6 +75,21 @@ build:
       appendDefinitions: true
       phases:
         - baseline
+      timeoutMinutes: 15
+      capture: evidence\build\${phase}-configure.txt
+    - id: configure-target
+      executable: cmake
+      arguments:
+        - -S
+        - ${sourceDirectory}
+        - -B
+        - ${buildDirectory}
+        - -A
+        - ${platform}
+        - -T
+        - ClangCL
+      appendDefinitions: true
+      phases:
         - target
       timeoutMinutes: 15
       capture: evidence\build\${phase}-configure.txt
