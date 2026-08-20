@@ -113,4 +113,9 @@ H0 -> H1 -> H2 -> H3 -> H4 -> H5 -> H6 -> H7 -> H8
   [PortPilot Execution Adapters](docs/PORTPILOT_EXECUTION_ADAPTERS.md).
 - The generic PocketSphinx x64 baseline preserves its exact nine-failure
   Windows parity set and passes deterministic recognition.
-- H5-H8: pending.
+- H5 reusable CI pipeline: complete.
+- CI reference:
+  [PortPilot Reusable CI](docs/PORTPILOT_CI.md).
+- Public producer/consumer proof:
+  [GitHub Actions run 32363364618](https://github.com/Kalunge/portpilot-pocketsphinx-arm64-validation/actions/runs/32363364618).
+- H6-H8: pending.

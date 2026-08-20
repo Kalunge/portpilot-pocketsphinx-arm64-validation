@@ -1,13 +1,6 @@
 name: PortPilot reusable Windows Arm validation
 
 on:
-  push:
-    paths:
-      - ".github/workflows/portpilot.yml"
-      - "manifests/**"
-      - "patches/**"
-      - "portpilot/**"
-      - "schemas/**"
   workflow_call:
     inputs:
       manifest_path:

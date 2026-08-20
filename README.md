@@ -38,4 +38,6 @@ A reusable, agent-driven workflow that analyses, ports, tests, and packages open
 - [Manifest and run-state contracts](docs/PORTPILOT_CONTRACTS.md)
 - [Repository analysis skills](docs/PORTPILOT_ANALYSIS_SKILLS.md)
 - [Resumable PortPilot orchestrator](docs/PORTPILOT_ORCHESTRATOR.md)
+- [Build and validation adapters](docs/PORTPILOT_EXECUTION_ADAPTERS.md)
+- [Reusable Windows Arm CI](docs/PORTPILOT_CI.md)
 - [Second application candidate lock](docs/SECOND_APP_CANDIDATE.md)
